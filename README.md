@@ -1,73 +1,54 @@
-# React + TypeScript + Vite
+# QDO (Queue Todo)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A snappy, gamified, queue-based progressive web application (PWA) for high-performance personal task management.
 
-Currently, two official plugins are available:
+## Overview
+QDO is designed around the concept of a "Working Slot" and a "Queue". Unlike traditional list-based todo apps, QDO forces focus by providing a single primary slot for the task you are currently doing, while the rest of your tasks wait in a prioritized queue.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Key Features
+- **Working Slot:** One slot, one task. Focus on what matters now.
+- **Prioritized Queue:** Drag-and-drop reordering or Tinder-style "Swipe View" for fast triaging.
+- **Gamified Interactions:** "Swipe up to work" cards and a "shredding" animation for completed tasks.
+- **Flexible Data Model:** Native IndexedDB storage with support for arbitrary custom properties on tasks.
+- **Smart Automations:** Auto-reorders tasks to the top when they become due.
+- **Local Notifications:** Browser-native reminders for due dates.
+- **Stats Dashboard:** Gantt chart visualization of your work history and productivity metrics.
+- **PWA Ready:** Installable on mobile and desktop, works offline.
 
-## React Compiler
+## Tech Stack
+- **Framework:** React 19 (TypeScript)
+- **Styling:** Tailwind CSS v4
+- **Animations:** Framer Motion
+- **Icons:** Lucide React
+- **Storage:** Native IndexedDB (via custom wrapper)
+- **Build Tool:** Vite
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Development Instructions
 
-## Expanding the ESLint configuration
+### Prerequisites
+- Node.js (Latest LTS recommended)
+- npm
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Setup
+1. Clone the repository.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+4. Open your browser to `http://localhost:5173`.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Key Commands
+- `npm run dev`: Start local development server.
+- `npm run build`: Type-check and build for production (generates PWA assets).
+- `npm run preview`: Preview the production build locally.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Project Structure
+- `src/lib/db.ts`: IndexedDB wrapper and database schema management.
+- `src/lib/TaskContext.tsx`: Main state engine, business logic, and background automation loops.
+- `src/lib/SettingsContext.tsx`: Theme and app-wide preference management.
+- `src/App.tsx`: Primary UI entry point, view routing, and component definitions.
+- `docs/`: Detailed architectural documentation (Obsidian Vault).
