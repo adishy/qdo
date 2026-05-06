@@ -1,24 +1,22 @@
 # Architectural Overview
 
-QDO is a client-side only Progressive Web Application. It uses a modular architecture to separate data persistence, state management, and the presentation layer.
+QDO utilizes a specialized client-side architecture to handle high-frequency auto-saving and complex animations.
 
 ## Data Layer (`src/lib/db.ts`)
-- **IndexedDB:** The source of truth. All data is persisted locally in the browser.
-- **Stores:**
-	- `tasks`: Stores all task items (Queue, Working, Done).
-	- `slotHistory`: Stores entry/exit timestamps for tasks in the working slot.
-	- `settings`: Stores user preferences.
-- **Async API:** The database wrapper provides a Promise-based API for all CRUD operations.
+- **IndexedDB:** Persistent storage for `tasks`, `slotHistory`, and `settings`.
+- **JSON API:** Export/Import logic to dump and load the entire database state.
 
-## Business Logic & State (`src/lib/TaskContext.tsx`)
-- **React Context:** Orchestrates the app state by bridging IndexedDB and the UI.
-- **Automation Loop:** A background `setInterval` checks for due tasks to trigger notifications and handle auto-sorting (moving due items to the top of the queue).
-- **History Tracking:** Automatically records `SlotHistory` entries when tasks move into or out of the 'working' status.
+## State & Business Logic (`src/lib/TaskContext.tsx`)
+- **Top Priority Logic:** `moveTask` ensures any task returning to the queue is placed at `queueOrder: 0`, and existing items are shifted.
+- **Automation Loop:** Checks every 10 seconds for tasks that have reached their `dateDue` to trigger browser Notifications and auto-sorting.
+- **History Engine:** Automatically records entry/exit timestamps when tasks move into the `working` status.
 
-## UI & Presentation (`src/App.tsx`)
-- **Modular Components:** UI is split into functional components like `TaskItem`, `SwipeView`, and `StatsView`.
-- **Framer Motion:** Handles all gamified interactions, including manual reordering, the card-stack swipe engine, and specialized animations like the "shredder".
-- **Tailwind v4:** Provides a utility-first styling system integrated via the Vite plugin for high performance.
+## UI Components (`src/App.tsx`)
+- **DraggableTaskItem:** A wrapper that wires Framer Motion's `Reorder.Item` to a dedicated `GripVertical` drag handle. It handles collision detection with the Working Slot drop zone.
+- **TaskItem:** The primary atom. It functions as an inline edit form. It auto-saves on `onBlur` and uses `react-markdown` for rendering descriptions.
+- **SwipeView:** A card-stack engine using `useMotionValue` and `useTransform` for Tinder-style interactions.
+- **StatsView:** A data visualization layer that uses SVG `foreignObject` to render a Gantt chart that stays responsive to task title lengths.
 
-## Navigation & Routing
-- Single-page navigation managed via a simple `activeTab` state, allowing for zero-latency switching between the App, Stats, and Settings.
+## Visual Styling
+- **Tailwind CSS v4:** Integrated via the Vite plugin. Custom animations like `glow-pulse` are defined in `src/index.css`.
+- **Framer Motion:** Used extensively for shared element transitions, manual reordering, and drag-and-drop collision feedback.

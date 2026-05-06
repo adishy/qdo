@@ -154,9 +154,18 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...task,
       status: newStatus,
       dateModified: Date.now(),
-      // Reset queueOrder when moving out of queue, or append to end if moving into queue
-      queueOrder: newStatus === 'queue' ? tasks.filter(t => t.status === 'queue').length : -1,
+      // If moving into queue, place at top (0), otherwise -1
+      queueOrder: newStatus === 'queue' ? 0 : -1,
     };
+
+    // If moving into queue, increment all other queue tasks' order
+    if (newStatus === 'queue') {
+      const queueTasks = tasks.filter(t => t.status === 'queue' && t.id !== id);
+      const updates = queueTasks.map(t => 
+        db.saveTask({ ...t, queueOrder: t.queueOrder + 1 })
+      );
+      await Promise.all(updates);
+    }
 
     await db.saveTask(updatedTask);
     await loadData();

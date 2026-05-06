@@ -311,35 +311,15 @@ export default function App() {
                         className="space-y-4"
                       >
                         {queueTasks.map((task) => (
-                          <Reorder.Item 
+                          <DraggableTaskItem 
                             key={task.id} 
-                            value={task}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.2 }}
-                            dragListener={false}
-                            onDrag={(_, info) => {
-                              if (checkCollisionWithSlot(info.point.x, info.point.y)) {
-                                setIsDropTarget(true);
-                              } else {
-                                setIsDropTarget(false);
-                              }
-                            }}
-                            onDragEnd={(_, info) => {
-                              setIsDropTarget(false);
-                              if (checkCollisionWithSlot(info.point.x, info.point.y)) {
-                                moveTask(task.id, 'working');
-                              }
-                            }}
-                          >
-                            <TaskItem 
-                              task={task} 
-                              onMove={(status) => moveTask(task.id, status)}
-                              onDelete={() => deleteTask(task.id)}
-                              onUpdate={(updated) => updateTask(updated)}
-                            />
-                          </Reorder.Item>
+                            task={task} 
+                            onMove={moveTask} 
+                            onDelete={deleteTask} 
+                            onUpdate={updateTask}
+                            checkCollision={checkCollisionWithSlot}
+                            setIsDropTarget={setIsDropTarget}
+                          />
                         ))}
                       </Reorder.Group>
                     </motion.div>
@@ -443,17 +423,62 @@ export default function App() {
   );
 }
 
-function TaskItem({ task, onMove, onDelete, onUpdate }: { 
+function DraggableTaskItem({ task, onMove, onDelete, onUpdate, checkCollision, setIsDropTarget }: {
+  task: Task,
+  onMove: (id: string, status: 'working' | 'done' | 'queue') => void,
+  onDelete: (id: string) => void,
+  onUpdate: (task: Task) => void,
+  checkCollision: (x: number, y: number) => boolean,
+  setIsDropTarget: (v: boolean) => void
+}) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item 
+      key={task.id} 
+      value={task}
+      dragControls={dragControls}
+      dragListener={false}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      onDrag={(_, info) => {
+        if (checkCollision(info.point.x, info.point.y)) {
+          setIsDropTarget(true);
+        } else {
+          setIsDropTarget(false);
+        }
+      }}
+      onDragEnd={(_, info) => {
+        setIsDropTarget(false);
+        if (checkCollision(info.point.x, info.point.y)) {
+          onMove(task.id, 'working');
+        }
+      }}
+    >
+      <TaskItem 
+        task={task} 
+        onMove={(status) => onMove(task.id, status)}
+        onDelete={() => onDelete(task.id)}
+        onUpdate={onUpdate}
+        dragControls={dragControls}
+      />
+    </Reorder.Item>
+  );
+}
+
+function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: { 
   task: Task, 
   onMove?: (status: 'working' | 'done' | 'queue') => void, 
   onDelete: () => void,
-  onUpdate: (task: Task) => void
+  onUpdate: (task: Task) => void,
+  dragControls?: any
 }) {
   const [isExpanded, setIsExpanded] = useState(task.status === 'queue');
   const [localTask, setLocalTask] = useState(task);
   const [newPropKey, setNewPropKey] = useState('');
   const [newPropVal, setNewPropVal] = useState('');
-  const dragControls = useDragControls();
 
   // Update local state if prop task changes (e.g. from context refresh)
   useEffect(() => {
@@ -503,13 +528,16 @@ function TaskItem({ task, onMove, onDelete, onUpdate }: {
     >
       <div className="p-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div 
-            onPointerDown={(e) => dragControls.start(e)}
-            className="p-1 -ml-1 text-zinc-300 dark:text-zinc-700 hover:text-indigo-500 cursor-grab active:cursor-grabbing transition-colors shrink-0"
-            title="Drag handle"
-          >
-            <GripVertical size={20} />
-          </div>
+          {/* Drag Handle - Only show/enable if dragControls provided */}
+          {dragControls && (
+            <div 
+              onPointerDown={(e) => dragControls.start(e)}
+              className="p-1 -ml-1 text-zinc-300 dark:text-zinc-700 hover:text-indigo-500 cursor-grab active:cursor-grabbing transition-colors shrink-0"
+              title="Drag handle"
+            >
+              <GripVertical size={20} />
+            </div>
+          )}
 
           <div className="flex items-center gap-4 flex-1 min-w-0" onClick={() => setIsExpanded(!isExpanded)}>
             <div className={cn(

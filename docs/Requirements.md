@@ -1,21 +1,24 @@
 # Requirements & Specifications
 
 ## Core User Workflow
-1. **Queueing:** User adds tasks to the queue.
-2. **Prioritization:** User reorders tasks (List View) or triages them (Swipe View).
-3. **Execution:** User pulls a single task into the "Working Slot".
-4. **Completion:** User marks a task done (triggering the shredder) or returns it to the queue.
+1. **Commanding:** User adds tasks via the central, glowing input (Quick focus via `⌘K`).
+2. **Prioritization:** 
+	- Manual reorder in List View using vertical drag handles.
+	- Rapid triage in Swipe View (Swipe Up = Work, Left/Right = Skip).
+3. **Inline Editing:** Task cards are expanded by default. Any change to title, description (Markdown), or URL is auto-saved on interaction or blur.
+4. **Execution:** User drags a task from the queue and drops it into the "Working Slot". 
+5. **Completion:** User marks a task done (triggering the shredder).
+6. **Context Switching:** Moving a task from the slot back to the queue automatically moves it to the **top** of the queue for immediate later resumption.
 
 ## Functional Requirements
-- **Local Persistence:** All data must save on every action.
-- **Flexibility:** Tasks must support arbitrary custom key-value properties.
-- **Snappy UI:** Interactions must feel instantaneous.
-- **Notifications:** Local browser-based reminders for due tasks.
-- **Automated Sorting:** Tasks with due dates should auto-promote to the top of the queue when due.
-- **Export/Import:** Support for full database backup/restore via JSON.
+- **Persistence:** Every change auto-saves to IndexedDB.
+- **Markdown:** Descriptions support full GFM (GitHub Flavored Markdown).
+- **Collision Logic:** Draggable cards detect when they are hovered over the "Working Slot".
+- **Notifications:** Browser-native reminders for due dates.
+- **Auto-Sorting:** Overdue/Due tasks move to position 0 in the queue automatically.
+- **Data Mobility:** Full JSON export/import for backup and cross-device sync.
 
 ## Visual & Interaction Specs
-- **Default Theme:** Dark mode.
-- **Swipe View:** Tinder-style interaction (Swipe Up = Work, Swipe Left/Right = Skip).
-- **Done Animation:** Gamified "shredding" effect for card completion.
-- **Stats:** Sequential Gantt chart showing "Working Slot" utilization over a selectable 7 or 30 day period.
+- **Aesthetic:** High-fidelity Dark Mode (default) with a classy indigo pulsing glow on the command bar.
+- **Recently Done:** Collapsed section showing full emerald-tinted cards with "Time in Slot" stats.
+- **Stats:** High-precision Gantt chart supporting resolutions from 10 minutes to 1 year.
