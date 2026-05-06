@@ -1,1 +1,12 @@
 @import "tailwindcss";
+
+@layer utilities {
+  @keyframes glow-pulse {
+    0%, 100% { opacity: 0.3; filter: blur(4px); }
+    50% { opacity: 0.6; filter: blur(8px); }
+  }
+
+  .animate-glow-pulse {
+    animation: glow-pulse 4s ease-in-out infinite;
+  }
+}

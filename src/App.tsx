@@ -1,20 +1,37 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useTasks } from './lib/TaskContext';
 import { useSettings } from './lib/SettingsContext';
 import { 
   LayoutList, Play, CheckCircle2, BarChart3, Settings as SettingsIcon, 
   Plus, Trash2, ArrowUpCircle, Sun, Moon, Download, Upload, 
-  AlertTriangle, ChevronDown, ChevronUp, Edit2, X, Save,
-  Link as LinkIcon, Info, Calendar, Clock, Layers, ArrowRight, ArrowUp
+  AlertTriangle, ChevronDown, ChevronUp, X,
+  Link as LinkIcon, Clock, Layers, ArrowRight, ArrowUp,
+  GripVertical
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { motion, AnimatePresence, Reorder, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useMotionValue, useTransform, useDragControls } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Task, SlotHistory } from './lib/types';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+// Helper to format duration
+const formatDuration = (ms: number) => {
+  if (ms < 0) return '0s';
+  const seconds = Math.floor((ms / 1000) % 60);
+  const minutes = Math.floor((ms / (1000 * 60)) % 60);
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  
+  const parts = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+  return parts.join(' ');
+};
 
 export default function App() {
   const { tasks, history: taskHistory, addTask, moveTask, deleteTask, updateTask, clearData, exportData, importData, reorderTasks } = useTasks();
@@ -23,6 +40,26 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'list' | 'swipe'>('list');
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [shreddingTaskId, setShreddingTaskId] = useState<string | null>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  
+  const workingSlotRef = useRef<HTMLDivElement>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcut for adding task
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        addInputRef.current?.focus();
+      }
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        addInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const queueTasks = useMemo(() => tasks.filter(t => t.status === 'queue').sort((a, b) => a.queueOrder - b.queueOrder), [tasks]);
   const workingTask = tasks.find(t => t.status === 'working');
@@ -71,6 +108,17 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const checkCollisionWithSlot = useCallback((x: number, y: number) => {
+    if (!workingSlotRef.current) return false;
+    const rect = workingSlotRef.current.getBoundingClientRect();
+    return (
+      x >= rect.left &&
+      x <= rect.right &&
+      y >= rect.top &&
+      y <= rect.bottom
+    );
+  }, []);
+
   return (
     <div className={cn(
       "min-h-screen flex flex-col font-sans transition-colors duration-300",
@@ -96,17 +144,63 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-8"
             >
+              {/* Add Task Input - Front and Center with Classy Glow */}
+              <section className="max-w-2xl mx-auto w-full pt-4 px-2">
+                <form onSubmit={handleAddTask} className="relative group">
+                  {/* Subtle Glowing Background */}
+                  <div className="absolute -inset-[1px] bg-indigo-500/20 dark:bg-indigo-500/10 rounded-[18px] blur-sm group-focus-within:animate-glow-pulse transition-all duration-700 opacity-0 group-focus-within:opacity-100" />
+                  
+                  <div className="relative bg-zinc-50 dark:bg-zinc-950 rounded-2xl flex items-center border border-zinc-200 dark:border-zinc-800 group-focus-within:border-indigo-500/50 transition-all duration-500 shadow-lg group-focus-within:shadow-indigo-500/10">
+                    <div className="absolute left-4 text-zinc-400 group-focus-within:text-indigo-500 transition-colors pointer-events-none">
+                      <Plus size={20} />
+                    </div>
+                    <input 
+                      ref={addInputRef}
+                      type="text" 
+                      value={newTaskTitle}
+                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                      placeholder="Add a task to the queue..." 
+                      className="w-full bg-transparent pl-12 pr-24 py-4 text-lg font-bold focus:outline-none placeholder:text-zinc-500 dark:text-zinc-100"
+                    />
+                    <div className="absolute right-4 flex items-center gap-2 pointer-events-none">
+                      <kbd className="hidden sm:flex h-6 items-center gap-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-800/50 px-1.5 font-mono text-[10px] font-medium text-zinc-500">
+                        <span className="text-xs">⌘</span>K
+                      </kbd>
+                      <span className="text-zinc-300 dark:text-zinc-700 text-xs">or</span>
+                      <kbd className="hidden sm:flex h-6 items-center gap-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-800/50 px-2 font-mono text-[10px] font-medium text-zinc-500">
+                        /
+                      </kbd>
+                    </div>
+                  </div>
+                </form>
+              </section>
+
               {/* Working Slot */}
               <section className="space-y-4">
-                <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center gap-2 px-2">
                   <Play size={14} className="text-indigo-500" /> Working Slot
                 </h2>
-                <div className={cn(
-                  "group relative min-h-[180px] rounded-2xl border-2 border-dashed transition-all duration-500 flex items-center justify-center p-8",
-                  workingTask 
-                    ? "border-indigo-500/50 bg-indigo-500/5 ring-4 ring-indigo-500/10" 
-                    : "border-zinc-200 dark:border-zinc-800 hover:border-indigo-500/30 bg-zinc-50 dark:bg-zinc-900/20"
-                )}>
+                <div 
+                  ref={workingSlotRef}
+                  className={cn(
+                    "group relative min-h-[220px] rounded-3xl border-2 border-dashed transition-all duration-500 flex items-center justify-center p-8 overflow-hidden",
+                    workingTask 
+                      ? "border-indigo-500/50 bg-indigo-500/5 ring-4 ring-indigo-500/10 shadow-2xl shadow-indigo-500/10" 
+                      : isDropTarget
+                        ? "border-indigo-500 bg-indigo-500/10 ring-8 ring-indigo-500/5 scale-[1.02]"
+                        : "border-zinc-200 dark:border-zinc-800 hover:border-indigo-500/30 bg-zinc-50 dark:bg-zinc-900/20"
+                  )}
+                >
+                  {isDropTarget && !workingTask && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="absolute inset-0 bg-indigo-500/10 flex flex-col items-center justify-center pointer-events-none"
+                    >
+                      <ArrowUpCircle size={48} className="text-indigo-500 animate-bounce" />
+                      <span className="text-indigo-500 font-black text-xl uppercase tracking-tighter mt-4">Drop to start working</span>
+                    </motion.div>
+                  )}
                   <AnimatePresence mode="wait">
                     {workingTask ? (
                       shreddingTaskId === workingTask.id ? (
@@ -117,22 +211,51 @@ export default function App() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 1.1 }}
-                          className="text-center space-y-4 w-full"
+                          className="w-full space-y-6"
                         >
-                          <h3 className="text-2xl font-bold">{workingTask.title}</h3>
-                          <div className="flex justify-center gap-3">
-                            <button 
-                              onClick={() => handleComplete(workingTask.id)}
-                              className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
-                            >
-                              <CheckCircle2 size={18} /> Complete
-                            </button>
-                            <button 
-                              onClick={() => moveTask(workingTask.id, 'queue')}
-                              className="flex items-center gap-2 px-6 py-2.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl font-semibold transition-all active:scale-95"
-                            >
-                              Back to Queue
-                            </button>
+                          <div className="text-center space-y-2">
+                            <h3 className="text-3xl font-black">{workingTask.title}</h3>
+                            {workingTask.url && (
+                              <a href={workingTask.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-indigo-500 hover:underline">
+                                <LinkIcon size={14} /> {workingTask.url}
+                              </a>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                            <div className="space-y-3">
+                              {workingTask.description ? (
+                                <div className="prose prose-sm dark:prose-invert max-w-none bg-zinc-100/50 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{workingTask.description}</ReactMarkdown>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-zinc-400 italic">No description</p>
+                              )}
+                            </div>
+                            
+                            <div className="space-y-4">
+                              <div className="flex flex-wrap gap-2">
+                                {Object.entries(workingTask.customProperties).map(([key, val]) => (
+                                  <div key={key} className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg text-xs shadow-sm">
+                                    <span className="text-zinc-500 font-bold">{key}:</span> {String(val)}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex flex-col gap-2">
+                                <button 
+                                  onClick={() => handleComplete(workingTask.id)}
+                                  className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
+                                >
+                                  <CheckCircle2 size={18} /> Complete Task
+                                </button>
+                                <button 
+                                  onClick={() => moveTask(workingTask.id, 'queue')}
+                                  className="flex items-center justify-center gap-2 px-6 py-2.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl font-semibold transition-all active:scale-95 text-sm"
+                                >
+                                  Back to Queue
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </motion.div>
                       )
@@ -142,7 +265,7 @@ export default function App() {
                         animate={{ opacity: 1 }}
                         className="text-zinc-400 dark:text-zinc-600 font-medium text-center"
                       >
-                        Select a task to start working
+                        Drag a task here or select from queue to start working
                       </motion.p>
                     )}
                   </AnimatePresence>
@@ -150,8 +273,8 @@ export default function App() {
               </section>
 
               {/* Queue */}
-              <section className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <section className="space-y-4 pt-4">
+                <div className="flex items-center justify-between px-2">
                   <div className="flex items-center gap-4">
                     <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center gap-2">
                       <LayoutList size={14} className="text-indigo-500" /> The Queue ({queueTasks.length})
@@ -171,18 +294,6 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                  <form onSubmit={handleAddTask} className="flex gap-2 w-full sm:max-w-xs">
-                    <input 
-                      type="text" 
-                      value={newTaskTitle}
-                      onChange={(e) => setNewTaskTitle(e.target.value)}
-                      placeholder="Add task..." 
-                      className="flex-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all placeholder:text-zinc-500"
-                    />
-                    <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/10">
-                      <Plus size={20} />
-                    </button>
-                  </form>
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -197,7 +308,7 @@ export default function App() {
                         axis="y" 
                         values={queueTasks} 
                         onReorder={(newOrder) => reorderTasks(newOrder.map(t => t.id))}
-                        className="space-y-3"
+                        className="space-y-4"
                       >
                         {queueTasks.map((task) => (
                           <Reorder.Item 
@@ -207,6 +318,20 @@ export default function App() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95 }}
                             transition={{ duration: 0.2 }}
+                            dragListener={false}
+                            onDrag={(_, info) => {
+                              if (checkCollisionWithSlot(info.point.x, info.point.y)) {
+                                setIsDropTarget(true);
+                              } else {
+                                setIsDropTarget(false);
+                              }
+                            }}
+                            onDragEnd={(_, info) => {
+                              setIsDropTarget(false);
+                              if (checkCollisionWithSlot(info.point.x, info.point.y)) {
+                                moveTask(task.id, 'working');
+                              }
+                            }}
                           >
                             <TaskItem 
                               task={task} 
@@ -238,30 +363,13 @@ export default function App() {
                 )}
               </section>
 
-              {/* Done */}
-              {doneTasks.length > 0 && (
-                <section className="space-y-4 pt-8">
-                  <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                    <CheckCircle2 size={14} className="text-emerald-500" /> Recently Done
-                  </h2>
-                  <div className="flex flex-wrap gap-2">
-                    {doneTasks.slice(0, 15).map(task => (
-                      <motion.div 
-                        layout
-                        key={task.id} 
-                        className="bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-500/80 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2"
-                      >
-                        {task.title}
-                      </motion.div>
-                    ))}
-                  </div>
-                </section>
-              )}
+              {/* Done Section */}
+              <DoneSection tasks={doneTasks} history={taskHistory} onDelete={deleteTask} onUpdate={updateTask} />
             </motion.div>
           )}
 
           {activeTab === 'stats' && (
-            <StatsView tasks={tasks} history={taskHistory} />
+            <StatsView tasks={tasks} history={taskHistory} onDelete={deleteTask} onUpdate={updateTask} />
           )}
 
           {activeTab === 'settings' && (
@@ -335,6 +443,304 @@ export default function App() {
   );
 }
 
+function TaskItem({ task, onMove, onDelete, onUpdate }: { 
+  task: Task, 
+  onMove?: (status: 'working' | 'done' | 'queue') => void, 
+  onDelete: () => void,
+  onUpdate: (task: Task) => void
+}) {
+  const [isExpanded, setIsExpanded] = useState(task.status === 'queue');
+  const [localTask, setLocalTask] = useState(task);
+  const [newPropKey, setNewPropKey] = useState('');
+  const [newPropVal, setNewPropVal] = useState('');
+  const dragControls = useDragControls();
+
+  // Update local state if prop task changes (e.g. from context refresh)
+  useEffect(() => {
+    setLocalTask(task);
+  }, [task]);
+
+  // Auto-save on blur or specific changes
+  const handleBlur = () => {
+    if (JSON.stringify(localTask) !== JSON.stringify(task)) {
+      onUpdate(localTask);
+    }
+  };
+
+  const addProperty = () => {
+    if (!newPropKey.trim()) return;
+    const updated = {
+      ...localTask,
+      customProperties: { ...localTask.customProperties, [newPropKey]: newPropVal }
+    };
+    setLocalTask(updated);
+    onUpdate(updated);
+    setNewPropKey('');
+    setNewPropVal('');
+  };
+
+  const removeProperty = (key: string) => {
+    const nextProps = { ...localTask.customProperties };
+    delete nextProps[key];
+    const updated = { ...localTask, customProperties: nextProps };
+    setLocalTask(updated);
+    onUpdate(updated);
+  };
+
+  const statusColors = {
+    queue: "border-zinc-200 dark:border-zinc-800",
+    working: "border-indigo-500/50 bg-indigo-500/5",
+    done: "border-emerald-500/30 bg-emerald-500/5 opacity-80"
+  };
+
+  return (
+    <div 
+      className={cn(
+        "group bg-zinc-50 dark:bg-zinc-900/50 border rounded-2xl overflow-hidden transition-all select-none",
+        statusColors[task.status],
+        isExpanded ? "ring-2 ring-indigo-500/10 shadow-lg" : "hover:border-zinc-300 dark:hover:border-zinc-700"
+      )}
+    >
+      <div className="p-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div 
+            onPointerDown={(e) => dragControls.start(e)}
+            className="p-1 -ml-1 text-zinc-300 dark:text-zinc-700 hover:text-indigo-500 cursor-grab active:cursor-grabbing transition-colors shrink-0"
+            title="Drag handle"
+          >
+            <GripVertical size={20} />
+          </div>
+
+          <div className="flex items-center gap-4 flex-1 min-w-0" onClick={() => setIsExpanded(!isExpanded)}>
+            <div className={cn(
+              "h-3 w-3 rounded-full shrink-0",
+              task.status === 'queue' ? "bg-zinc-300 dark:bg-zinc-700 group-hover:bg-indigo-500" :
+              task.status === 'working' ? "bg-indigo-500 animate-pulse" : "bg-emerald-500"
+            )} />
+            <input 
+              className="flex-1 font-bold bg-transparent border-none p-0 focus:ring-0 outline-none truncate select-text cursor-text"
+              value={localTask.title}
+              onChange={e => setLocalTask({...localTask, title: e.target.value})}
+              onBlur={handleBlur}
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-1 shrink-0">
+          {onMove && task.status === 'queue' && (
+            <button 
+              onClick={() => onMove('working')}
+              className="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-xl transition-all active:scale-90"
+              title="Start work"
+            >
+              <ArrowUpCircle size={20} />
+            </button>
+          )}
+          {onMove && task.status === 'working' && (
+            <button 
+              onClick={() => onMove('done')}
+              className="p-2 hover:bg-emerald-500/10 text-emerald-500 rounded-xl transition-all active:scale-90"
+              title="Complete"
+            >
+              <CheckCircle2 size={20} />
+            </button>
+          )}
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 rounded-xl transition-all"
+          >
+            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+        </div>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/30 p-5 space-y-6"
+          >
+            <div className="space-y-4 select-text">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Description (Markdown)</label>
+                <textarea 
+                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500/50 outline-none min-h-[100px] font-mono"
+                  value={localTask.description}
+                  onChange={e => setLocalTask({...localTask, description: e.target.value})}
+                  onBlur={handleBlur}
+                  placeholder="# Enter details..."
+                />
+                {localTask.description && (
+                  <div className="mt-2 p-3 bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800 prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{localTask.description}</ReactMarkdown>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">URL / Link</label>
+                  <div className="flex gap-2">
+                    <input 
+                      className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
+                      value={localTask.url || ''}
+                      onChange={e => setLocalTask({...localTask, url: e.target.value})}
+                      onBlur={handleBlur}
+                    />
+                    {localTask.url && (
+                      <a href={localTask.url} target="_blank" rel="noopener noreferrer" className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-indigo-500 hover:bg-indigo-500/10 transition-all">
+                        <LinkIcon size={18} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Due Date</label>
+                  <input 
+                    type="datetime-local"
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
+                    value={localTask.dateDue ? new Date(localTask.dateDue).toISOString().slice(0, 16) : ''}
+                    onChange={e => setLocalTask({...localTask, dateDue: e.target.value ? new Date(e.target.value).getTime() : undefined})}
+                    onBlur={handleBlur}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input 
+                  type="checkbox"
+                  id={`remind-${task.id}`}
+                  className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                  checked={localTask.remindMe}
+                  onChange={e => {
+                    const updated = {...localTask, remindMe: e.target.checked};
+                    setLocalTask(updated);
+                    onUpdate(updated);
+                  }}
+                />
+                <label htmlFor={`remind-${task.id}`} className="text-sm font-medium">Notify me when due</label>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Custom Properties</span>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(localTask.customProperties).map(([key, val]) => (
+                    <div key={key} className="group/prop flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 rounded-lg text-xs">
+                      <span className="text-zinc-500 font-bold">{key}:</span>
+                      <span>{String(val)}</span>
+                      <button onClick={() => removeProperty(key)} className="opacity-0 group-hover/prop:opacity-100 hover:text-red-500 transition-all ml-1">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 border border-dashed border-zinc-300 dark:border-zinc-700">
+                    <input 
+                      placeholder="Key" 
+                      className="bg-transparent text-[10px] w-12 px-1 outline-none"
+                      value={newPropKey}
+                      onChange={e => setNewPropKey(e.target.value)}
+                    />
+                    <span className="text-zinc-500">:</span>
+                    <input 
+                      placeholder="Value" 
+                      className="bg-transparent text-[10px] w-16 px-1 outline-none"
+                      value={newPropVal}
+                      onChange={e => setNewPropVal(e.target.value)}
+                    />
+                    <button onClick={addProperty} className="p-1 hover:bg-indigo-500 hover:text-white rounded transition-all">
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex gap-4">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-tighter">Created</span>
+                    <p className="text-[10px] font-medium">{new Date(task.dateAdded).toLocaleString()}</p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-tighter">Modified</span>
+                    <p className="text-[10px] font-medium">{new Date(task.dateModified).toLocaleString()}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                >
+                  <Trash2 size={14} /> Delete Task
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function DoneSection({ tasks, history, onDelete, onUpdate }: { tasks: Task[], history: SlotHistory[], onDelete: (id: string) => void, onUpdate: (task: Task) => void }) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  
+  if (tasks.length === 0) return null;
+
+  return (
+    <section className="space-y-4 pt-8">
+      <button 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="flex items-center justify-between w-full p-4 bg-zinc-100/50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-sm font-bold text-zinc-500 uppercase tracking-widest group hover:border-emerald-500/30 transition-all shadow-sm"
+      >
+        <div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-400">
+          <CheckCircle2 size={18} className="text-emerald-500" /> 
+          Recently Done ({tasks.length})
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-[10px] font-medium lowercase opacity-0 group-hover:opacity-100 transition-opacity">Click to {isCollapsed ? 'expand' : 'collapse'}</span>
+          <div className="p-1 group-hover:bg-emerald-500/10 rounded-lg transition-all">
+            {isCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+          </div>
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {!isCollapsed && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="space-y-6 pt-2"
+          >
+            {tasks.map(task => {
+              const duration = history
+                .filter(h => h.taskId === task.id)
+                .reduce((total, h) => {
+                  const end = h.exitedSlotAt || h.enteredSlotAt;
+                  return total + (end - h.enteredSlotAt);
+                }, 0);
+
+              return (
+                <div key={task.id} className="relative group/done-card">
+                  <div className="absolute -left-3 top-0 bottom-0 w-1.5 bg-emerald-500/40 rounded-full blur-[1px]" />
+                  <TaskItem task={task} onDelete={() => onDelete(task.id)} onUpdate={onUpdate} />
+                  <div className="absolute right-12 top-4 flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                      <Clock size={12} /> {formatDuration(duration)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}
+
 function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const x = useMotionValue(0);
@@ -355,7 +761,7 @@ function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) 
   if (tasks.length === 0) return null;
 
   return (
-    <div className="relative h-[400px] flex items-center justify-center perspective-1000 overflow-hidden">
+    <div className="relative h-[550px] flex items-center justify-center perspective-1000 overflow-visible pb-12">
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="flex flex-col items-center gap-2 text-zinc-400 dark:text-zinc-600 opacity-20">
           <ArrowUp size={48} />
@@ -387,7 +793,9 @@ function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) 
             <div className="h-1 w-12 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-8" />
             <h3 className="text-3xl font-bold leading-tight">{currentTask.title}</h3>
             {currentTask.description && (
-              <p className="text-zinc-500 dark:text-zinc-400 line-clamp-4">{currentTask.description}</p>
+              <div className="prose prose-sm dark:prose-invert max-h-[160px] overflow-hidden text-zinc-500 dark:text-zinc-400 line-clamp-4">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTask.description}</ReactMarkdown>
+              </div>
             )}
           </div>
           
@@ -445,241 +853,6 @@ function Shredder({ title }: { title: string }) {
   );
 }
 
-function TaskItem({ task, onMove, onDelete, onUpdate }: { 
-  task: Task, 
-  onMove: (status: 'working' | 'done') => void, 
-  onDelete: () => void,
-  onUpdate: (task: Task) => void
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(task.title);
-  const [editDesc, setEditDesc] = useState(task.description || '');
-  const [editUrl, setEditUrl] = useState(task.url || '');
-  const [editDue, setEditDue] = useState(task.dateDue ? new Date(task.dateDue).toISOString().slice(0, 16) : '');
-  const [editRemind, setEditRemind] = useState(task.remindMe);
-  const [newPropKey, setNewPropKey] = useState('');
-  const [newPropVal, setNewPropVal] = useState('');
-
-  const handleSave = () => {
-    onUpdate({
-      ...task,
-      title: editTitle,
-      description: editDesc,
-      url: editUrl,
-      dateDue: editDue ? new Date(editDue).getTime() : undefined,
-      remindMe: editRemind,
-    });
-    setIsEditing(false);
-  };
-
-  const addProperty = () => {
-    if (!newPropKey.trim()) return;
-    onUpdate({
-      ...task,
-      customProperties: {
-        ...task.customProperties,
-        [newPropKey]: newPropVal
-      }
-    });
-    setNewPropKey('');
-    setNewPropVal('');
-  };
-
-  const removeProperty = (key: string) => {
-    const next = { ...task.customProperties };
-    delete next[key];
-    onUpdate({ ...task, customProperties: next });
-  };
-
-  return (
-    <motion.div 
-      layout
-      className={cn(
-        "group bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden transition-all",
-        isExpanded ? "ring-2 ring-indigo-500/20 border-indigo-500/30 shadow-xl" : "hover:border-zinc-300 dark:hover:border-zinc-700"
-      )}
-    >
-      <div className="p-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 flex-1 min-w-0" onClick={() => setIsExpanded(!isExpanded)}>
-          <div className="h-2.5 w-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700 group-hover:bg-indigo-500 transition-colors shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h4 className="font-semibold truncate">{task.title}</h4>
-            {task.description && !isExpanded && (
-              <p className="text-xs text-zinc-500 truncate">{task.description}</p>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-1 shrink-0">
-          <button 
-            onClick={() => onMove('working')}
-            className="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-xl transition-all active:scale-90"
-            title="Start work"
-          >
-            <ArrowUpCircle size={20} />
-          </button>
-          <button 
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 rounded-xl transition-all"
-          >
-            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-          </button>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/30 p-5 space-y-6"
-          >
-            {isEditing ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Title</label>
-                  <input 
-                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
-                    value={editTitle}
-                    onChange={e => setEditTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Description</label>
-                  <textarea 
-                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none min-h-[80px]"
-                    value={editDesc}
-                    onChange={e => setEditDesc(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">URL / Link</label>
-                  <input 
-                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
-                    value={editUrl}
-                    onChange={e => setEditUrl(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Due Date & Time</label>
-                    <input 
-                      type="datetime-local"
-                      className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
-                      value={editDue}
-                      onChange={e => setEditDue(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 pt-6">
-                    <input 
-                      type="checkbox"
-                      id={`remind-${task.id}`}
-                      className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-                      checked={editRemind}
-                      onChange={e => setEditRemind(e.target.checked)}
-                    />
-                    <label htmlFor={`remind-${task.id}`} className="text-sm font-medium">Remind me</label>
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-all">Cancel</button>
-                  <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition-all"><Save size={16} /> Save Changes</button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5"><Calendar size={10}/> Added</span>
-                    <p className="text-xs font-medium">{new Date(task.dateAdded).toLocaleDateString()} at {new Date(task.dateAdded).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  </div>
-                  {task.dateDue && (
-                    <div className="space-y-1">
-                      <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5",
-                        task.dateDue < Date.now() ? "text-red-500" : "text-zinc-500"
-                      )}><Clock size={10}/> Due</span>
-                      <p className={cn("text-xs font-bold", task.dateDue < Date.now() ? "text-red-500" : "")}>
-                        {new Date(task.dateDue).toLocaleDateString()} at {new Date(task.dateDue).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {task.description && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5"><Info size={10}/> Description</span>
-                    <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{task.description}</p>
-                  </div>
-                )}
-
-                {task.url && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5"><LinkIcon size={10}/> Link</span>
-                    <a href={task.url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-500 hover:underline truncate block">
-                      {task.url}
-                    </a>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Custom Properties</span>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(task.customProperties).map(([key, val]) => (
-                      <div key={key} className="group/prop flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 rounded-lg text-xs">
-                        <span className="text-zinc-500 font-bold">{key}:</span>
-                        <span>{String(val)}</span>
-                        <button onClick={() => removeProperty(key)} className="opacity-0 group-hover/prop:opacity-100 hover:text-red-500 transition-all ml-1">
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-800 rounded-lg p-1">
-                      <input 
-                        placeholder="Key" 
-                        className="bg-transparent text-[10px] w-12 px-1 outline-none"
-                        value={newPropKey}
-                        onChange={e => setNewPropKey(e.target.value)}
-                      />
-                      <span className="text-zinc-500">:</span>
-                      <input 
-                        placeholder="Value" 
-                        className="bg-transparent text-[10px] w-16 px-1 outline-none"
-                        value={newPropVal}
-                        onChange={e => setNewPropVal(e.target.value)}
-                      />
-                      <button onClick={addProperty} className="p-1 hover:bg-indigo-500 hover:text-white rounded transition-all">
-                        <Plus size={12} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <button 
-                    onClick={() => setIsEditing(true)}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-zinc-200 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-900 rounded-xl text-sm font-semibold transition-all"
-                  >
-                    <Edit2 size={16} /> Edit Task
-                  </button>
-                  <button 
-                    onClick={onDelete}
-                    className="p-2.5 border border-red-500/20 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              </>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
 function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
   return (
     <button 
@@ -697,10 +870,22 @@ function TabButton({ active, onClick, icon, label }: { active: boolean, onClick:
   );
 }
 
-function StatsView({ tasks, history }: { tasks: Task[], history: SlotHistory[] }) {
-  const [period, setPeriod] = useState<7 | 30>(7);
+const RESOLUTIONS = [
+  { label: 'Last 10 Mins', value: 10 * 60 * 1000 },
+  { label: 'Last 1 Hour', value: 60 * 60 * 1000 },
+  { label: 'Last 8 Hours', value: 8 * 60 * 60 * 1000 },
+  { label: 'Last Day', value: 24 * 60 * 60 * 1000 },
+  { label: 'Last Week', value: 7 * 24 * 60 * 60 * 1000 },
+  { label: 'Last 2 Weeks', value: 14 * 24 * 60 * 60 * 1000 },
+  { label: 'Last Month', value: 30 * 24 * 60 * 60 * 1000 },
+  { label: 'Last Quarter', value: 90 * 24 * 60 * 60 * 1000 },
+  { label: 'Last Year', value: 365 * 24 * 60 * 60 * 1000 },
+];
+
+function StatsView({ tasks, history, onDelete, onUpdate }: { tasks: Task[], history: SlotHistory[], onDelete: (id: string) => void, onUpdate: (task: Task) => void }) {
+  const [periodMs, setPeriodMs] = useState(24 * 60 * 60 * 1000);
   const now = Date.now();
-  const periodStart = now - period * 24 * 60 * 60 * 1000;
+  const periodStart = now - periodMs;
 
   const completedInPeriod = tasks.filter(t => t.status === 'done' && t.dateModified >= periodStart);
   
@@ -718,9 +903,8 @@ function StatsView({ tasks, history }: { tasks: Task[], history: SlotHistory[] }
       .sort((a, b) => a.enteredSlotAt - b.enteredSlotAt);
   }, [history, periodStart]);
 
-  // Gantt chart logic
   const chartWidth = 800;
-  const chartHeight = Math.max(200, historyInPeriod.length * 30 + 40);
+  const chartHeight = Math.max(200, historyInPeriod.length * 35 + 40);
   
   const getTimeX = (time: number) => {
     const relativeTime = Math.max(0, time - periodStart);
@@ -735,29 +919,24 @@ function StatsView({ tasks, history }: { tasks: Task[], history: SlotHistory[] }
     >
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Statistics</h2>
-        <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <button 
-            onClick={() => setPeriod(7)}
-            className={cn("px-3 py-1 rounded-md text-xs font-bold transition-all", period === 7 ? "bg-white dark:bg-zinc-800 shadow-sm" : "text-zinc-500")}
-          >
-            Last 7 Days
-          </button>
-          <button 
-            onClick={() => setPeriod(30)}
-            className={cn("px-3 py-1 rounded-md text-xs font-bold transition-all", period === 30 ? "bg-white dark:bg-zinc-800 shadow-sm" : "text-zinc-500")}
-          >
-            Last 30 Days
-          </button>
-        </div>
+        <select 
+          value={periodMs}
+          onChange={(e) => setPeriodMs(Number(e.target.value))}
+          className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 ring-indigo-500/50"
+        >
+          {RESOLUTIONS.map(res => (
+            <option key={res.value} value={res.value}>{res.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 text-center space-y-2">
+        <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 text-center space-y-2 shadow-sm">
           <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Completed</span>
           <p className="text-4xl font-black text-indigo-500">{completedInPeriod.length}</p>
-          <p className="text-xs text-zinc-500">Tasks in last {period} days</p>
+          <p className="text-xs text-zinc-500">Tasks in selected period</p>
         </div>
-        <div className="md:col-span-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6">
+        <div className="md:col-span-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
           <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">By Source</h3>
           <div className="space-y-3">
             {statsBySource.slice(0, 5).map(([source, count]) => (
@@ -782,17 +961,21 @@ function StatsView({ tasks, history }: { tasks: Task[], history: SlotHistory[] }
 
       <section className="space-y-4">
         <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest">Working Slot History (Gantt)</h3>
-        <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 overflow-x-auto">
+        <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 overflow-x-auto shadow-sm">
           {historyInPeriod.length > 0 ? (
             <svg width="100%" viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="min-w-[600px]">
               {/* Timeline markers */}
-              {[...Array(period + 1)].map((_, i) => {
-                const x = (i / period) * chartWidth;
+              {[...Array(5)].map((_, i) => {
+                const x = (i / 4) * chartWidth;
+                const time = periodStart + (i / 4) * periodMs;
                 return (
                   <g key={i}>
-                    <line x1={x} y1={0} x2={x} y2={chartHeight - 20} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeDasharray="4 4" />
-                    <text x={x} y={chartHeight - 5} textAnchor="middle" className="text-[10px] fill-zinc-400">
-                      {new Date(periodStart + i * 24 * 60 * 60 * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    <line x1={x} y1={0} x2={x} y2={chartHeight - 40} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeDasharray="4 4" />
+                    <text x={x} y={chartHeight - 15} textAnchor="middle" className="text-[10px] font-bold fill-zinc-400">
+                      {new Date(time).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    </text>
+                    <text x={x} y={chartHeight - 5} textAnchor="middle" className="text-[9px] fill-zinc-500">
+                      {new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </text>
                   </g>
                 );
@@ -802,24 +985,32 @@ function StatsView({ tasks, history }: { tasks: Task[], history: SlotHistory[] }
               {historyInPeriod.map((h, i) => {
                 const startX = getTimeX(h.enteredSlotAt);
                 const endX = getTimeX(h.exitedSlotAt || now);
-                const barY = i * 30 + 10;
+                const barY = i * 45 + 10;
+                const barWidth = Math.max(8, endX - startX);
+                
                 return (
                   <g key={h.id} className="group/bar">
                     <rect 
                       x={startX} 
                       y={barY} 
-                      width={Math.max(2, endX - startX)} 
-                      height={20} 
-                      rx={4} 
-                      className="fill-indigo-500/40 stroke-indigo-500 stroke-1 hover:fill-indigo-500/60 transition-all cursor-help"
+                      width={barWidth} 
+                      height={35} 
+                      rx={8} 
+                      className="fill-indigo-500/20 stroke-indigo-500/50 stroke-1 hover:fill-indigo-500/40 transition-all cursor-help"
                     />
-                    <text 
-                      x={startX + 5} 
-                      y={barY + 14} 
-                      className="text-[10px] font-bold fill-zinc-900 dark:fill-white opacity-0 group-hover/bar:opacity-100 pointer-events-none transition-opacity"
-                    >
-                      {h.taskTitle}
-                    </text>
+                    <foreignObject x={startX + 5} y={barY} width={Math.max(200, barWidth - 10)} height="35">
+                      <div className="flex items-center h-full overflow-hidden">
+                        <span className="text-[11px] font-bold truncate text-indigo-700 dark:text-indigo-300 pointer-events-none">
+                          {h.taskTitle}
+                          <span className="ml-2 font-normal opacity-70">
+                            ({formatDuration((h.exitedSlotAt || now) - h.enteredSlotAt)})
+                          </span>
+                        </span>
+                      </div>
+                    </foreignObject>
+                    
+                    {/* Tooltip on hover */}
+                    <title>{h.taskTitle} (Started: {new Date(h.enteredSlotAt).toLocaleString()})</title>
                   </g>
                 );
               })}
@@ -829,6 +1020,9 @@ function StatsView({ tasks, history }: { tasks: Task[], history: SlotHistory[] }
           )}
         </div>
       </section>
+
+      {/* Done section included in stats too */}
+      <DoneSection tasks={completedInPeriod} history={history} onDelete={onDelete} onUpdate={onUpdate} />
     </motion.div>
   );
 }
