@@ -6,7 +6,7 @@ import {
   Plus, Trash2, ArrowUpCircle, Sun, Moon, Download, Upload, 
   AlertTriangle, ChevronDown, ChevronUp, X,
   Link as LinkIcon, Clock, Layers, ArrowRight, ArrowUp,
-  GripVertical, ChevronsUpDown, ChevronsDownUp
+  ChevronsUpDown, ChevronsDownUp
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -463,6 +463,7 @@ function DraggableTaskItem({ task, onMove, onDelete, onUpdate, checkCollision, s
     <Reorder.Item 
       key={task.id} 
       value={task}
+      drag
       dragControls={dragControls}
       dragListener={false}
       initial={{ opacity: 0, y: 10 }}
@@ -557,28 +558,30 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
     done: "border-emerald-500/30 bg-emerald-500/5 opacity-80"
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!dragControls) return;
+    const target = e.target as HTMLElement;
+    if (['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(target.tagName) || target.closest('button') || target.closest('a')) {
+      return;
+    }
+    dragControls.start(e);
+  };
+
   return (
     <div 
+      onPointerDown={handlePointerDown}
       className={cn(
         "group bg-zinc-50 dark:bg-zinc-900/50 border rounded-xl overflow-hidden transition-all select-none",
         statusColors[task.status],
-        isExpanded ? "ring-2 ring-indigo-500/10 shadow-md" : "hover:border-zinc-300 dark:hover:border-zinc-700"
+        isExpanded ? "ring-2 ring-indigo-500/10 shadow-md" : "hover:border-zinc-300 dark:hover:border-zinc-700",
+        dragControls ? "cursor-grab active:cursor-grabbing" : ""
       )}
     >
-      <div className="p-3 flex items-center justify-between gap-3">
+      <div 
+        className="p-3 flex items-center justify-between gap-3 transition-colors"
+      >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* Drag Handle - Only show/enable if dragControls provided */}
-          {dragControls && (
-            <div 
-              onPointerDown={(e) => dragControls.start(e)}
-              className="p-1 -ml-1 text-zinc-300 dark:text-zinc-700 hover:text-indigo-500 cursor-grab active:cursor-grabbing transition-colors shrink-0"
-              title="Drag handle"
-            >
-              <GripVertical size={16} />
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 flex-1 min-w-0" onClick={() => setIsExpanded(!isExpanded)}>
+          <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}>
             <div className={cn(
               "h-2.5 w-2.5 rounded-full shrink-0",
               task.status === 'queue' ? "bg-zinc-300 dark:bg-zinc-700 group-hover:bg-indigo-500" :
