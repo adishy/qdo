@@ -5,7 +5,7 @@ set -e
 
 IMAGE_NAME="qdo-pwa"
 CONTAINER_NAME="qdo-instance"
-PORT="5000"
+PORT="8080"
 RUN_CONTAINER=false
 
 # Try to get host IP (works on macOS and most Linux)
