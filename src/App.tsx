@@ -6,7 +6,7 @@ import {
   Plus, Trash2, ArrowUpCircle, Sun, Moon, Download, Upload, 
   AlertTriangle, ChevronDown, ChevronUp, X,
   Link as LinkIcon, Clock, Layers, ArrowRight, ArrowUp,
-  GripVertical
+  GripVertical, ChevronsUpDown, ChevronsDownUp
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -41,6 +41,8 @@ export default function App() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [shreddingTaskId, setShreddingTaskId] = useState<string | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
+  const [allExpandedTrigger, setAllExpandedTrigger] = useState(0);
+  const [allCollapsedTrigger, setAllCollapsedTrigger] = useState(0);
   
   const workingSlotRef = useRef<HTMLDivElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
@@ -213,6 +215,7 @@ export default function App() {
                           exit={{ opacity: 0, scale: 1.1 }}
                           className="w-full space-y-6"
                         >
+                          <WorkingSlotTimer history={taskHistory} />
                           <div className="text-center space-y-2">
                             <h3 className="text-3xl font-black">{workingTask.title}</h3>
                             {workingTask.url && (
@@ -279,21 +282,40 @@ export default function App() {
                     <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center gap-2">
                       <LayoutList size={14} className="text-indigo-500" /> The Queue ({queueTasks.length})
                     </h2>
-                    <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                    <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 gap-1">
                       <button 
                         onClick={() => setViewMode('list')}
                         className={cn("p-1.5 rounded-md transition-all", viewMode === 'list' ? "bg-white dark:bg-zinc-800 shadow-sm text-indigo-500" : "text-zinc-500")}
+                        title="List View"
                       >
                         <LayoutList size={16} />
                       </button>
                       <button 
                         onClick={() => setViewMode('swipe')}
                         className={cn("p-1.5 rounded-md transition-all", viewMode === 'swipe' ? "bg-white dark:bg-zinc-800 shadow-sm text-indigo-500" : "text-zinc-500")}
+                        title="Swipe View"
                       >
                         <Layers size={16} />
                       </button>
                     </div>
                   </div>
+
+                  {viewMode === 'list' && (
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setAllExpandedTrigger(t => t + 1)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold text-zinc-500 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"
+                      >
+                        <ChevronsUpDown size={14} /> Expand All
+                      </button>
+                      <button 
+                        onClick={() => setAllCollapsedTrigger(t => t + 1)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold text-zinc-500 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"
+                      >
+                        <ChevronsDownUp size={14} /> Collapse All
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -319,6 +341,8 @@ export default function App() {
                             onUpdate={updateTask}
                             checkCollision={checkCollisionWithSlot}
                             setIsDropTarget={setIsDropTarget}
+                            allExpandedTrigger={allExpandedTrigger}
+                            allCollapsedTrigger={allCollapsedTrigger}
                           />
                         ))}
                       </Reorder.Group>
@@ -423,13 +447,15 @@ export default function App() {
   );
 }
 
-function DraggableTaskItem({ task, onMove, onDelete, onUpdate, checkCollision, setIsDropTarget }: {
+function DraggableTaskItem({ task, onMove, onDelete, onUpdate, checkCollision, setIsDropTarget, allExpandedTrigger, allCollapsedTrigger }: {
   task: Task,
   onMove: (id: string, status: 'working' | 'done' | 'queue') => void,
   onDelete: (id: string) => void,
   onUpdate: (task: Task) => void,
   checkCollision: (x: number, y: number) => boolean,
-  setIsDropTarget: (v: boolean) => void
+  setIsDropTarget: (v: boolean) => void,
+  allExpandedTrigger: number,
+  allCollapsedTrigger: number
 }) {
   const dragControls = useDragControls();
 
@@ -463,22 +489,35 @@ function DraggableTaskItem({ task, onMove, onDelete, onUpdate, checkCollision, s
         onDelete={() => onDelete(task.id)}
         onUpdate={onUpdate}
         dragControls={dragControls}
+        allExpandedTrigger={allExpandedTrigger}
+        allCollapsedTrigger={allCollapsedTrigger}
       />
     </Reorder.Item>
   );
 }
 
-function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: { 
+function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedTrigger, allCollapsedTrigger }: { 
   task: Task, 
   onMove?: (status: 'working' | 'done' | 'queue') => void, 
   onDelete: () => void,
   onUpdate: (task: Task) => void,
-  dragControls?: any
+  dragControls?: any,
+  allExpandedTrigger?: number,
+  allCollapsedTrigger?: number
 }) {
   const [isExpanded, setIsExpanded] = useState(task.status === 'queue');
   const [localTask, setLocalTask] = useState(task);
   const [newPropKey, setNewPropKey] = useState('');
   const [newPropVal, setNewPropVal] = useState('');
+
+  // Synchronize expansion with external triggers
+  useEffect(() => {
+    if (allExpandedTrigger && allExpandedTrigger > 0) setIsExpanded(true);
+  }, [allExpandedTrigger]);
+
+  useEffect(() => {
+    if (allCollapsedTrigger && allCollapsedTrigger > 0) setIsExpanded(false);
+  }, [allCollapsedTrigger]);
 
   // Update local state if prop task changes (e.g. from context refresh)
   useEffect(() => {
@@ -521,12 +560,12 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
   return (
     <div 
       className={cn(
-        "group bg-zinc-50 dark:bg-zinc-900/50 border rounded-2xl overflow-hidden transition-all select-none",
+        "group bg-zinc-50 dark:bg-zinc-900/50 border rounded-xl overflow-hidden transition-all select-none",
         statusColors[task.status],
-        isExpanded ? "ring-2 ring-indigo-500/10 shadow-lg" : "hover:border-zinc-300 dark:hover:border-zinc-700"
+        isExpanded ? "ring-2 ring-indigo-500/10 shadow-md" : "hover:border-zinc-300 dark:hover:border-zinc-700"
       )}
     >
-      <div className="p-4 flex items-center justify-between gap-4">
+      <div className="p-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* Drag Handle - Only show/enable if dragControls provided */}
           {dragControls && (
@@ -535,18 +574,18 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
               className="p-1 -ml-1 text-zinc-300 dark:text-zinc-700 hover:text-indigo-500 cursor-grab active:cursor-grabbing transition-colors shrink-0"
               title="Drag handle"
             >
-              <GripVertical size={20} />
+              <GripVertical size={16} />
             </div>
           )}
 
-          <div className="flex items-center gap-4 flex-1 min-w-0" onClick={() => setIsExpanded(!isExpanded)}>
+          <div className="flex items-center gap-3 flex-1 min-w-0" onClick={() => setIsExpanded(!isExpanded)}>
             <div className={cn(
-              "h-3 w-3 rounded-full shrink-0",
+              "h-2.5 w-2.5 rounded-full shrink-0",
               task.status === 'queue' ? "bg-zinc-300 dark:bg-zinc-700 group-hover:bg-indigo-500" :
               task.status === 'working' ? "bg-indigo-500 animate-pulse" : "bg-emerald-500"
             )} />
             <input 
-              className="flex-1 font-bold bg-transparent border-none p-0 focus:ring-0 outline-none truncate select-text cursor-text"
+              className="flex-1 font-bold text-sm bg-transparent border-none p-0 focus:ring-0 outline-none truncate select-text cursor-text"
               value={localTask.title}
               onChange={e => setLocalTask({...localTask, title: e.target.value})}
               onBlur={handleBlur}
@@ -559,26 +598,26 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
           {onMove && task.status === 'queue' && (
             <button 
               onClick={() => onMove('working')}
-              className="p-2 hover:bg-indigo-500/10 text-indigo-500 rounded-xl transition-all active:scale-90"
+              className="p-1.5 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all active:scale-90"
               title="Start work"
             >
-              <ArrowUpCircle size={20} />
+              <ArrowUpCircle size={18} />
             </button>
           )}
           {onMove && task.status === 'working' && (
             <button 
               onClick={() => onMove('done')}
-              className="p-2 hover:bg-emerald-500/10 text-emerald-500 rounded-xl transition-all active:scale-90"
+              className="p-1.5 hover:bg-emerald-500/10 text-emerald-500 rounded-lg transition-all active:scale-90"
               title="Complete"
             >
-              <CheckCircle2 size={20} />
+              <CheckCircle2 size={18} />
             </button>
           )}
           <button 
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 rounded-xl transition-all"
+            className="p-1.5 hover:bg-zinc-200 dark:bg-zinc-800 text-zinc-400 rounded-lg transition-all"
           >
-            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
         </div>
       </div>
@@ -589,28 +628,28 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/30 p-5 space-y-6"
+            className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/30 p-4 space-y-4"
           >
-            <div className="space-y-4 select-text">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Description (Markdown)</label>
+            <div className="space-y-3 select-text">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Description (Markdown)</label>
                 <textarea 
-                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500/50 outline-none min-h-[100px] font-mono"
+                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2.5 text-sm focus:ring-2 ring-indigo-500/50 outline-none min-h-[80px] font-mono leading-tight"
                   value={localTask.description}
                   onChange={e => setLocalTask({...localTask, description: e.target.value})}
                   onBlur={handleBlur}
                   placeholder="# Enter details..."
                 />
                 {localTask.description && (
-                  <div className="mt-2 p-3 bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800 prose prose-sm dark:prose-invert max-w-none">
+                  <div className="mt-2 p-3 bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800 prose prose-sm dark:prose-invert max-w-none text-sm leading-snug">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{localTask.description}</ReactMarkdown>
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">URL / Link</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">URL / Link</label>
                   <div className="flex gap-2">
                     <input 
                       className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
@@ -619,14 +658,32 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
                       onBlur={handleBlur}
                     />
                     {localTask.url && (
-                      <a href={localTask.url} target="_blank" rel="noopener noreferrer" className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-indigo-500 hover:bg-indigo-500/10 transition-all">
-                        <LinkIcon size={18} />
+                      <a href={localTask.url} target="_blank" rel="noopener noreferrer" className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-indigo-500 hover:bg-indigo-500/10 transition-all flex items-center justify-center">
+                        <LinkIcon size={16} />
                       </a>
                     )}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Due Date</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Source</label>
+                  <select 
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
+                    value={localTask.source || ''}
+                    onChange={e => {
+                      const updated = { ...localTask, source: e.target.value };
+                      setLocalTask(updated);
+                      onUpdate(updated);
+                    }}
+                  >
+                    <option value="">Unknown</option>
+                    <option value="Email">Email</option>
+                    <option value="Teams Message">Teams Message</option>
+                    <option value="Whatsapp">Whatsapp</option>
+                    <option value="SMS">SMS</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Date</label>
                   <input 
                     type="datetime-local"
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
@@ -637,11 +694,11 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 py-1">
                 <input 
                   type="checkbox"
                   id={`remind-${task.id}`}
-                  className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                  className="w-3.5 h-3.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
                   checked={localTask.remindMe}
                   onChange={e => {
                     const updated = {...localTask, remindMe: e.target.checked};
@@ -649,22 +706,22 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
                     onUpdate(updated);
                   }}
                 />
-                <label htmlFor={`remind-${task.id}`} className="text-sm font-medium">Notify me when due</label>
+                <label htmlFor={`remind-${task.id}`} className="text-xs font-medium">Notify me when due</label>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Custom Properties</span>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(localTask.customProperties).map(([key, val]) => (
-                    <div key={key} className="group/prop flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 rounded-lg text-xs">
+                    <div key={key} className="group/prop flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-2 py-1 rounded-md text-[11px]">
                       <span className="text-zinc-500 font-bold">{key}:</span>
                       <span>{String(val)}</span>
-                      <button onClick={() => removeProperty(key)} className="opacity-0 group-hover/prop:opacity-100 hover:text-red-500 transition-all ml-1">
-                        <X size={14} />
+                      <button onClick={() => removeProperty(key)} className="opacity-0 group-hover/prop:opacity-100 hover:text-red-500 transition-all ml-0.5">
+                        <X size={12} />
                       </button>
                     </div>
                   ))}
-                  <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 border border-dashed border-zinc-300 dark:border-zinc-700">
+                  <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-md p-1 border border-dashed border-zinc-300 dark:border-zinc-700">
                     <input 
                       placeholder="Key" 
                       className="bg-transparent text-[10px] w-12 px-1 outline-none"
@@ -678,29 +735,29 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls }: {
                       value={newPropVal}
                       onChange={e => setNewPropVal(e.target.value)}
                     />
-                    <button onClick={addProperty} className="p-1 hover:bg-indigo-500 hover:text-white rounded transition-all">
+                    <button onClick={addProperty} className="p-0.5 hover:bg-indigo-500 hover:text-white rounded transition-all">
                       <Plus size={12} />
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center justify-between pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-800">
                 <div className="flex gap-4">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-tighter">Created</span>
-                    <p className="text-[10px] font-medium">{new Date(task.dateAdded).toLocaleString()}</p>
+                    <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-tighter">Created</span>
+                    <p className="text-[10px] font-medium text-zinc-600 dark:text-zinc-400">{new Date(task.dateAdded).toLocaleString()}</p>
                   </div>
                   <div className="space-y-0.5">
-                    <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-tighter">Modified</span>
-                    <p className="text-[10px] font-medium">{new Date(task.dateModified).toLocaleString()}</p>
+                    <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-tighter">Modified</span>
+                    <p className="text-[10px] font-medium text-zinc-600 dark:text-zinc-400">{new Date(task.dateModified).toLocaleString()}</p>
                   </div>
                 </div>
                 <button 
                   onClick={onDelete}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-red-500 hover:bg-red-500/10 rounded-md transition-all"
                 >
-                  <Trash2 size={14} /> Delete Task
+                  <Trash2 size={12} /> Delete Task
                 </button>
               </div>
             </div>
@@ -781,8 +838,13 @@ function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) 
   const handleDragEnd = (_: any, info: any) => {
     if (info.offset.y < -100) {
       onSelect(currentTask);
+      // Reset position slightly to avoid it getting stuck if re-rendered
+      x.set(0);
+      y.set(0);
     } else if (Math.abs(info.offset.x) > 100) {
       setCurrentIndex((prev) => (prev + 1) % tasks.length);
+      // Let the exit animation handle it, but motion values stick to the element
+      // We don't reset them here so it fades at the dragged position
     }
   };
 
@@ -815,6 +877,7 @@ function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) 
           dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
           onDragEnd={handleDragEnd}
           whileDrag={{ scale: 1.05 }}
+          exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
           className="absolute w-full max-w-sm aspect-[3/4] bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-8 flex flex-col justify-between cursor-grab active:cursor-grabbing z-10"
         >
           <div className="space-y-4">
@@ -841,6 +904,30 @@ function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) 
           />
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function WorkingSlotTimer({ history }: { history: SlotHistory[] }) {
+  const [elapsed, setElapsed] = useState(0);
+  
+  useEffect(() => {
+    const activeRecord = history.find(h => h.exitedSlotAt === null);
+    if (!activeRecord) return;
+    
+    const interval = setInterval(() => {
+      setElapsed(Date.now() - activeRecord.enteredSlotAt);
+    }, 1000);
+    
+    setElapsed(Date.now() - activeRecord.enteredSlotAt);
+    return () => clearInterval(interval);
+  }, [history]);
+  
+  if (!elapsed) return null;
+  
+  return (
+    <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[10px] font-bold text-indigo-500 bg-indigo-500/10 px-2.5 py-1.5 rounded-md border border-indigo-500/20 backdrop-blur-sm">
+      <Clock size={12} /> {formatDuration(elapsed)}
     </div>
   );
 }

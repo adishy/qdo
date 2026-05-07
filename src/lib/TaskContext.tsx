@@ -17,6 +17,14 @@ interface TaskContextType {
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
+// Safe ID generator fallback for non-secure contexts
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [history, setHistory] = useState<SlotHistory[]>([]);
@@ -55,7 +63,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       for (const task of tasks) {
         // 1. Notifications
         if (task.remindMe && task.dateDue && task.dateDue <= now && task.status !== 'done') {
-          if (Notification.permission === 'granted') {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             new Notification('QDO Task Due', {
               body: `Task "${task.title}" is due now!`,
               icon: '/vite.svg'
@@ -87,14 +95,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [tasks, loadData, reorderTasks]);
 
   useEffect(() => {
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
   const addTask = async (title: string, details?: Partial<Task>) => {
     const newTask: Task = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       title,
       description: '',
       dateAdded: Date.now(),
@@ -136,7 +144,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const historyItem: SlotHistory = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         taskId: task.id,
         taskTitle: task.title,
         enteredSlotAt: Date.now(),
