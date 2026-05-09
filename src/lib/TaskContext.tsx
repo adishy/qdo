@@ -95,12 +95,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [tasks, loadData, reorderTasks]);
 
-  useEffect(() => {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
   const addTask = async (title: string, details?: Partial<Task>) => {
     const newTask: Task = {
       id: generateId(),
