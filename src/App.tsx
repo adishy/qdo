@@ -268,13 +268,24 @@ export default function App() {
     }
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      new Notification('Permissions Granted', {
+      new Notification('QDO — Notifications Enabled', {
         body: 'You will now receive notifications when tasks are due!',
         icon: '/favicon.svg'
       });
     } else {
       alert('Notification permissions were denied.');
     }
+  };
+
+  const fireTestNotification = () => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      alert('Notification permission not granted. Use the Notifications button above first.');
+      return;
+    }
+    new Notification('QDO — Test Notification', {
+      body: 'This is a test. If you can see this, notifications are working correctly!',
+      icon: '/favicon.svg'
+    });
   };
 
   const checkClipboardPermission = async () => {
@@ -659,6 +670,12 @@ export default function App() {
                         <Clipboard size={18} /> Clipboard
                       </button>
                     </div>
+                    <button
+                      onClick={fireTestNotification}
+                      className="w-full flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 border-dashed p-2.5 rounded-xl text-sm font-medium text-zinc-500 transition-all"
+                    >
+                      <Bell size={15} /> Send Test Notification
+                    </button>
                   </div>
 
                   <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 space-y-4">
@@ -950,10 +967,39 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Date</label>
                   <input 
-                    type="datetime-local"
+                    type="date"
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none"
-                    value={localTask.dateDue ? new Date(localTask.dateDue).toISOString().slice(0, 16) : ''}
-                    onChange={e => setLocalTask({...localTask, dateDue: e.target.value ? new Date(e.target.value).getTime() : undefined})}
+                    value={localTask.dateDue ? new Date(localTask.dateDue - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ''}
+                    onChange={e => {
+                      if (!e.target.value) {
+                        setLocalTask({...localTask, dateDue: undefined});
+                        return;
+                      }
+                      // Preserve existing time if set, otherwise default to end of day (23:59)
+                      const existingDate = localTask.dateDue ? new Date(localTask.dateDue) : null;
+                      const [year, month, day] = e.target.value.split('-').map(Number);
+                      const next = existingDate
+                        ? new Date(existingDate.getFullYear() !== year || existingDate.getMonth() + 1 !== month || existingDate.getDate() !== day
+                            ? new Date(year, month - 1, day, 23, 59, 0).getTime()
+                            : existingDate.getTime())
+                        : new Date(year, month - 1, day, 23, 59, 0);
+                      setLocalTask({...localTask, dateDue: next.getTime()});
+                    }}
+                    onBlur={handleBlur}
+                  />
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Time <span className="font-normal normal-case opacity-60">(optional)</span></label>
+                  <input 
+                    type="time"
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none disabled:opacity-40"
+                    disabled={!localTask.dateDue}
+                    value={localTask.dateDue ? `${String(new Date(localTask.dateDue).getHours()).padStart(2, '0')}:${String(new Date(localTask.dateDue).getMinutes()).padStart(2, '0')}` : ''}
+                    onChange={e => {
+                      if (!localTask.dateDue || !e.target.value) return;
+                      const [hours, minutes] = e.target.value.split(':').map(Number);
+                      const next = new Date(localTask.dateDue);
+                      next.setHours(hours, minutes, 0, 0);
+                      setLocalTask({...localTask, dateDue: next.getTime()});
+                    }}
                     onBlur={handleBlur}
                   />
                 </div>
