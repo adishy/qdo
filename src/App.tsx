@@ -841,7 +841,7 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
             <input 
               className={cn(
                 "flex-1 font-bold text-base md:text-sm bg-transparent border-none p-0 focus:ring-0 outline-none truncate",
-                isExpanded ? "select-text cursor-text" : "cursor-pointer select-none"
+                isExpanded ? "select-text cursor-text" : "pointer-events-none select-none"
               )}
               value={localTask.title}
               onChange={e => setLocalTask({...localTask, title: e.target.value})}
