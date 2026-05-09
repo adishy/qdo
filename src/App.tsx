@@ -1,6 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { useTasks } from './lib/TaskContext';
-import { useSettings } from './lib/SettingsContext';
+import { marked } from 'marked';
 import { 
   LayoutList, Play, CheckCircle2, BarChart3, Settings as SettingsIcon, 
   Plus, Trash2, ArrowUpCircle, Sun, Moon, Download, Upload, 
@@ -11,8 +10,8 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence, Reorder, useMotionValue, useTransform, useDragControls } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { useTasks } from './lib/TaskContext';
+import { useSettings } from './lib/SettingsContext';
 import type { Task, SlotHistory } from './lib/types';
 
 function cn(...inputs: ClassValue[]) {
@@ -32,6 +31,79 @@ const formatDuration = (ms: number) => {
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
   return parts.join(' ');
 };
+
+// Configure marked once with GFM enabled
+marked.use({ gfm: true });
+
+const mdToHtml = (markdown: string): string => {
+  const raw = marked.parse(markdown) as string;
+  // marked renders checkboxes as <input disabled …> — remove disabled so they're clickable
+  return raw.replace(/\s*disabled=""/gi, '');
+};
+
+const toggleMarkdownCheckbox = (markdown: string, index: number): string => {
+  let count = 0;
+  const regex = /^(\s*(?:[*+-]|\d+\.)\s+)\[([ xX])\]/gm;
+  return markdown.replace(regex, (match, prefix, p1) => {
+    if (count === index) {
+      count++;
+      return `${prefix}[${p1 === ' ' ? 'x' : ' '}]`;
+    }
+    count++;
+    return match;
+  });
+};
+
+function TaskMarkdown({ task, onUpdate, className }: {
+  task: Task;
+  onUpdate: (task: Task) => void;
+  className?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const taskRef = useRef(task);
+  taskRef.current = task;
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+
+  const html = useMemo(() => mdToHtml(task.description ?? ''), [task.description]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName !== 'INPUT') return;
+      const input = target as HTMLInputElement;
+      if (input.type !== 'checkbox') return;
+
+      // Prevent the browser toggling the checkbox — we'll re-render from markdown
+      e.preventDefault();
+
+      const allBoxes = Array.from(el.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+      const index = allBoxes.indexOf(input);
+      if (index === -1) return;
+
+      const desc = taskRef.current.description ?? '';
+      const next = toggleMarkdownCheckbox(desc, index);
+      if (next !== desc) {
+        onUpdateRef.current({ ...taskRef.current, description: next });
+      }
+    };
+
+    el.addEventListener('click', handleClick);
+    return () => el.removeEventListener('click', handleClick);
+  // Re-attach whenever the html changes so querySelectorAll sees fresh nodes
+  }, [html]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={className}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
 
 export default function App() {
   const { tasks, history: taskHistory, addTask, moveTask, deleteTask, updateTask, clearData, exportData, importData, reorderTasks } = useTasks();
@@ -185,12 +257,12 @@ export default function App() {
                 <div 
                   ref={workingSlotRef}
                   className={cn(
-                    "group relative min-h-[220px] rounded-3xl border-2 border-dashed transition-all duration-500 flex items-center justify-center p-8 overflow-hidden",
+                    "group relative min-h-[220px] rounded-3xl border-2 border-dashed transition-all duration-500 flex justify-center p-8 overflow-hidden",
                     workingTask 
-                      ? "border-indigo-500/50 bg-indigo-500/5 ring-4 ring-indigo-500/10 shadow-2xl shadow-indigo-500/10" 
+                      ? "border-indigo-500/50 bg-indigo-500/5 ring-4 ring-indigo-500/10 shadow-2xl shadow-indigo-500/10 items-start" 
                       : isDropTarget
-                        ? "border-indigo-500 bg-indigo-500/10 ring-8 ring-indigo-500/5 scale-[1.02]"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-indigo-500/30 bg-zinc-50 dark:bg-zinc-900/20"
+                        ? "border-indigo-500 bg-indigo-500/10 ring-8 ring-indigo-500/5 scale-[1.02] items-center"
+                        : "border-zinc-200 dark:border-zinc-800 hover:border-indigo-500/30 bg-zinc-50 dark:bg-zinc-900/20 items-center"
                   )}
                 >
                   {isDropTarget && !workingTask && (
@@ -213,7 +285,7 @@ export default function App() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 1.1 }}
-                          className="w-full space-y-6"
+                          className="w-full space-y-6 pt-6"
                         >
                           <WorkingSlotTimer history={taskHistory} />
                           <div className="text-center space-y-2">
@@ -228,9 +300,11 @@ export default function App() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                             <div className="space-y-3">
                               {workingTask.description ? (
-                                <div className="prose prose-sm dark:prose-invert max-w-none bg-zinc-100/50 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{workingTask.description}</ReactMarkdown>
-                                </div>
+                                <TaskMarkdown 
+                                  task={workingTask} 
+                                  onUpdate={updateTask}
+                                  className="prose prose-sm dark:prose-invert max-w-none bg-zinc-100/50 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800"
+                                />
                               ) : (
                                 <p className="text-sm text-zinc-400 italic">No description</p>
                               )}
@@ -644,9 +718,11 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
                   placeholder="# Enter details..."
                 />
                 {localTask.description && (
-                  <div className="mt-2 p-3 bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800 prose prose-sm dark:prose-invert max-w-none text-sm leading-snug">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{localTask.description}</ReactMarkdown>
-                  </div>
+                  <TaskMarkdown 
+                    task={localTask} 
+                    onUpdate={onUpdate}
+                    className="mt-2 p-3 bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800 prose prose-sm dark:prose-invert max-w-none text-sm leading-snug"
+                  />
                 )}
               </div>
 
@@ -887,9 +963,11 @@ function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) 
             <div className="h-1 w-12 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-8" />
             <h3 className="text-3xl font-bold leading-tight">{currentTask.title}</h3>
             {currentTask.description && (
-              <div className="prose prose-sm dark:prose-invert max-h-[160px] overflow-hidden text-zinc-500 dark:text-zinc-400 line-clamp-4">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentTask.description}</ReactMarkdown>
-              </div>
+              <TaskMarkdown 
+                task={currentTask} 
+                onUpdate={() => {}} // No update in swipe view to avoid jumpy transitions
+                className="prose prose-sm dark:prose-invert max-h-[160px] overflow-hidden text-zinc-500 dark:text-zinc-400 line-clamp-4"
+              />
             )}
           </div>
           
