@@ -18,9 +18,11 @@ QDO is a snappy, gamified queue-based todo application built with React, Vite, a
 2. **Interactive Markdown Checkboxes**:
    - Instead of complex controlled React components inside `react-markdown`, QDO generates HTML natively using `marked` and renders using `dangerouslySetInnerHTML`.
    - Event delegation on the parent container intercepts native clicks to flip the markdown's text-based checkbox state. This bypasses React's virtual DOM reconciliation loop, providing pixel-perfect interaction.
-3. **Sharing via URL State**:
-   - Encoding: Tasks are compressed into a URL-safe string using `lz-string` base64 algorithms. 
-   - When visiting `/#state={base64}`, QDO prompts the user to import tasks. Imported tasks automatically merge into the current DB with fresh IDs.
+3. **Unified Import System & Sharing**:
+   - Both JSON imports and URL-based sharing utilize the `mergeTasks` pipeline in `TaskContext`. This prevents data overwrites by automatically generating fresh IDs for incoming tasks and appending them seamlessly to the user's existing queue.
+   - **URL Sharing**: Tasks are compressed into a URL-safe string using `lz-string` base64 algorithms. When visiting `/#state={base64}`, QDO prompts the user to import tasks.
+   - **Legacy Cleanups**: The experimental "Swipe View" feature was fully removed from the codebase to maintain UI simplicity.
+   - **Permissions**: Browsers strictly govern Clipboard and Notification APIs. Explicit "System Permissions" triggers were added to the Settings view to allow users to manually request rights.
 
 ## Deployment & Testing
 - **Vitest**: Integrated with `fake-indexeddb` to run data-model regression tests across contexts.

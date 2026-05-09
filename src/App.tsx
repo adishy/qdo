@@ -4,12 +4,13 @@ import {
   LayoutList, Play, CheckCircle2, BarChart3, Settings as SettingsIcon, 
   Plus, Trash2, ArrowUpCircle, Sun, Moon, Download, Upload, 
   AlertTriangle, ChevronDown, ChevronUp, X,
-  Link as LinkIcon, Clock, Layers, ArrowRight, ArrowUp,
-  ChevronsUpDown, ChevronsDownUp, RefreshCw, Share2, Check
+  Link as LinkIcon, Clock,
+  ChevronsUpDown, ChevronsDownUp, RefreshCw, Share2, Check,
+  Bell, Clipboard
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { motion, AnimatePresence, Reorder, useMotionValue, useTransform, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { useTasks } from './lib/TaskContext';
 import { useSettings } from './lib/SettingsContext';
 import { encodeState, decodeState } from './lib/url-state';
@@ -107,10 +108,9 @@ function TaskMarkdown({ task, onUpdate, className }: {
 }
 
 export default function App() {
-  const { tasks, history: taskHistory, addTask, moveTask, deleteTask, updateTask, clearData, exportData, importData, reorderTasks, mergeTasks } = useTasks();
+  const { tasks, history: taskHistory, addTask, moveTask, deleteTask, updateTask, clearData, exportData, reorderTasks, mergeTasks } = useTasks();
   const { theme, toggleTheme } = useSettings();
   const [activeTab, setActiveTab] = useState<'app' | 'stats' | 'settings'>('app');
-  const [viewMode, setViewMode] = useState<'list' | 'swipe'>('list');
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [shreddingTaskId, setShreddingTaskId] = useState<string | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
@@ -203,10 +203,17 @@ export default function App() {
     reader.onload = async (re) => {
       const json = re.target?.result as string;
       try {
-        await importData(json);
-        alert('Data imported successfully!');
+        const data = JSON.parse(json);
+        if (data && data.tasks && Array.isArray(data.tasks)) {
+          if (confirm(`Found ${data.tasks.length} tasks. Do you want to merge them into your current queue?`)) {
+            await mergeTasks(data.tasks);
+            alert('Tasks merged successfully!');
+          }
+        } else {
+          throw new Error('Invalid format');
+        }
       } catch (err) {
-        alert('Failed to import data. Invalid JSON.');
+        alert('Failed to import data. Invalid JSON format.');
       }
     };
     reader.readAsText(file);
@@ -215,13 +222,71 @@ export default function App() {
   const handleShare = async () => {
     const encoded = encodeState(tasks);
     const url = `${window.location.origin}${window.location.pathname}#state=${encoded}`;
+    
+    const fallbackCopy = () => {
+      const textArea = document.createElement("textarea");
+      textArea.value = url;
+      // Avoid scrolling to bottom
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          setShareCopied(true);
+          setTimeout(() => setShareCopied(false), 2000);
+        } else {
+          throw new Error('execCommand failed');
+        }
+      } catch (err) {
+        prompt('Failed to copy automatically. Please copy the URL below:', url);
+      }
+      document.body.removeChild(textArea);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      } catch (err) {
+        fallbackCopy();
+      }
+    } else {
+      fallbackCopy();
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert('This browser does not support notifications.');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      new Notification('Permissions Granted', {
+        body: 'You will now receive notifications when tasks are due!',
+        icon: '/favicon.svg'
+      });
+    } else {
+      alert('Notification permissions were denied.');
+    }
+  };
+
+  const checkClipboardPermission = async () => {
     try {
-      await navigator.clipboard.writeText(url);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        // Just test it quickly
+        await navigator.clipboard.writeText('QDO Clipboard Test');
+        alert('Clipboard permissions are granted and working!');
+      } else {
+        throw new Error('Clipboard API not available');
+      }
     } catch (err) {
-      alert('Failed to copy link. Check console for the URL.');
-      console.log('Share URL:', url);
+      alert('Clipboard access is blocked or unavailable in this context.');
     }
   };
 
@@ -435,78 +500,52 @@ export default function App() {
                     <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center gap-2">
                       <LayoutList size={14} className="text-indigo-500" /> The Queue ({queueTasks.length})
                     </h2>
-                    <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 gap-1">
-                      <button 
-                        onClick={() => setViewMode('list')}
-                        className={cn("p-1.5 rounded-md transition-all", viewMode === 'list' ? "bg-white dark:bg-zinc-800 shadow-sm text-indigo-500" : "text-zinc-500")}
-                        title="List View"
-                      >
-                        <LayoutList size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setViewMode('swipe')}
-                        className={cn("p-1.5 rounded-md transition-all", viewMode === 'swipe' ? "bg-white dark:bg-zinc-800 shadow-sm text-indigo-500" : "text-zinc-500")}
-                        title="Swipe View"
-                      >
-                        <Layers size={16} />
-                      </button>
-                    </div>
                   </div>
 
-                  {viewMode === 'list' && (
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setAllExpandedTrigger(t => t + 1)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold text-zinc-500 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"
-                      >
-                        <ChevronsUpDown size={14} /> Expand All
-                      </button>
-                      <button 
-                        onClick={() => setAllCollapsedTrigger(t => t + 1)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold text-zinc-500 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"
-                      >
-                        <ChevronsDownUp size={14} /> Collapse All
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setAllExpandedTrigger(t => t + 1)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold text-zinc-500 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"
+                    >
+                      <ChevronsUpDown size={14} /> Expand All
+                    </button>
+                    <button 
+                      onClick={() => setAllCollapsedTrigger(t => t + 1)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold text-zinc-500 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"
+                    >
+                      <ChevronsDownUp size={14} /> Collapse All
+                    </button>
+                  </div>
                 </div>
 
                 <AnimatePresence mode="wait">
-                  {viewMode === 'list' ? (
-                    <motion.div
-                      key="list-view"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                  <motion.div
+                    key="list-view"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <Reorder.Group 
+                      axis="y" 
+                      values={queueTasks} 
+                      onReorder={(newOrder) => reorderTasks(newOrder.map(t => t.id))}
+                      className="space-y-4"
                     >
-                      <Reorder.Group 
-                        axis="y" 
-                        values={queueTasks} 
-                        onReorder={(newOrder) => reorderTasks(newOrder.map(t => t.id))}
-                        className="space-y-4"
-                      >
-                        {queueTasks.map((task) => (
-                          <DraggableTaskItem 
-                            key={task.id} 
-                            task={task} 
-                            onMove={moveTask} 
-                            onDelete={deleteTask} 
-                            onUpdate={updateTask}
-                            checkCollision={checkCollisionWithSlot}
-                            setIsDropTarget={setIsDropTarget}
-                            allExpandedTrigger={allExpandedTrigger}
-                            allCollapsedTrigger={allCollapsedTrigger}
-                          />
-                        ))}
-                      </Reorder.Group>
-                    </motion.div>
-                  ) : (
-                    <SwipeView 
-                      key="swipe-view"
-                      tasks={queueTasks} 
-                      onSelect={(task) => moveTask(task.id, 'working')}
-                    />
-                  )}
+                      {queueTasks.map((task) => (
+                        <DraggableTaskItem 
+                          key={task.id} 
+                          task={task} 
+                          onMove={moveTask} 
+                          onDelete={deleteTask} 
+                          onUpdate={updateTask}
+                          checkCollision={checkCollisionWithSlot}
+                          setIsDropTarget={setIsDropTarget}
+                          allExpandedTrigger={allExpandedTrigger}
+                          allCollapsedTrigger={allCollapsedTrigger}
+                        />
+                      ))}
+                    </Reorder.Group>
+                  </motion.div>
                 </AnimatePresence>
                 
                 {queueTasks.length === 0 && (
@@ -597,6 +636,27 @@ export default function App() {
                         <Upload size={18} /> Import JSON
                         <input type="file" accept=".json" onChange={handleImport} className="hidden" />
                       </label>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 space-y-4">
+                    <div>
+                      <h3 className="font-semibold">System Permissions</h3>
+                      <p className="text-sm text-zinc-500">Manage browser permissions for QDO features.</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={requestNotificationPermission}
+                        className="flex-1 flex items-center justify-center gap-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 p-3 rounded-xl font-medium transition-all"
+                      >
+                        <Bell size={18} /> Notifications
+                      </button>
+                      <button 
+                        onClick={checkClipboardPermission}
+                        className="flex-1 flex items-center justify-center gap-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 p-3 rounded-xl font-medium transition-all"
+                      >
+                        <Clipboard size={18} /> Clipboard
+                      </button>
                     </div>
                   </div>
 
@@ -1011,89 +1071,6 @@ function DoneSection({ tasks, history, onDelete, onUpdate }: { tasks: Task[], hi
   );
 }
 
-function SwipeView({ tasks, onSelect }: { tasks: Task[], onSelect: (task: Task) => void }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-25, 25]);
-  const upOpacity = useTransform(y, [-150, -100, 0], [0, 1, 1]);
-
-  const currentTask = tasks[currentIndex];
-
-  const handleDragEnd = (_: any, info: any) => {
-    if (info.offset.y < -100) {
-      onSelect(currentTask);
-      // Reset position slightly to avoid it getting stuck if re-rendered
-      x.set(0);
-      y.set(0);
-    } else if (Math.abs(info.offset.x) > 100) {
-      setCurrentIndex((prev) => (prev + 1) % tasks.length);
-      // Let the exit animation handle it, but motion values stick to the element
-      // We don't reset them here so it fades at the dragged position
-    }
-  };
-
-  if (tasks.length === 0) return null;
-
-  return (
-    <div className="relative h-[550px] flex items-center justify-center perspective-1000 overflow-visible pb-12">
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex flex-col items-center gap-2 text-zinc-400 dark:text-zinc-600 opacity-20">
-          <ArrowUp size={48} />
-          <span className="text-sm font-bold uppercase tracking-widest">Swipe Up to Slot</span>
-          <div className="flex gap-20 mt-4">
-            <div className="flex flex-col items-center gap-1">
-              <ArrowRight size={24} className="rotate-180" />
-              <span className="text-[10px]">Skip</span>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <ArrowRight size={24} />
-              <span className="text-[10px]">Skip</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <AnimatePresence mode="popLayout">
-        <motion.div 
-          key={currentTask.id}
-          style={{ x, y, rotate, opacity: upOpacity }}
-          drag
-          dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-          onDragEnd={handleDragEnd}
-          whileDrag={{ scale: 1.05 }}
-          exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
-          className="absolute w-full max-w-sm aspect-[3/4] bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-8 flex flex-col justify-between cursor-grab active:cursor-grabbing z-10"
-        >
-          <div className="space-y-4">
-            <div className="h-1 w-12 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-8" />
-            <h3 className="text-3xl font-bold leading-tight">{currentTask.title}</h3>
-            {currentTask.description && (
-              <TaskMarkdown 
-                task={currentTask} 
-                onUpdate={() => {}} // No update in swipe view to avoid jumpy transitions
-                className="prose prose-sm dark:prose-invert max-h-[160px] overflow-hidden text-zinc-500 dark:text-zinc-400 line-clamp-4"
-              />
-            )}
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase tracking-widest">
-              <Clock size={12} /> Added {new Date(currentTask.dateAdded).toLocaleDateString()}
-            </div>
-          </div>
-        </motion.div>
-        
-        {tasks[(currentIndex + 1) % tasks.length] && (
-          <motion.div 
-            key="next-card"
-            className="absolute w-full max-w-sm aspect-[3/4] bg-zinc-50 dark:bg-zinc-900/50 border-2 border-zinc-100 dark:border-zinc-800/50 rounded-3xl p-8 -z-10 scale-95 translate-y-4 opacity-50"
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
 function WorkingSlotTimer({ history }: { history: SlotHistory[] }) {
   const [elapsed, setElapsed] = useState(0);
