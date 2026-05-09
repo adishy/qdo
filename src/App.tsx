@@ -964,35 +964,36 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
                     <option value="SMS">SMS</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Due date + time on its own full-width row so time picker is always visible */}
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Date</label>
                   <input 
                     type="date"
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none"
-                    value={localTask.dateDue ? new Date(localTask.dateDue - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ''}
+                    value={localTask.dateDue ? (() => { const d = new Date(localTask.dateDue); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : ''}
                     onChange={e => {
-                      if (!e.target.value) {
-                        setLocalTask({...localTask, dateDue: undefined});
-                        return;
-                      }
-                      // Preserve existing time if set, otherwise default to end of day (23:59)
-                      const existingDate = localTask.dateDue ? new Date(localTask.dateDue) : null;
+                      if (!e.target.value) { setLocalTask({...localTask, dateDue: undefined}); return; }
                       const [year, month, day] = e.target.value.split('-').map(Number);
-                      const next = existingDate
-                        ? new Date(existingDate.getFullYear() !== year || existingDate.getMonth() + 1 !== month || existingDate.getDate() !== day
-                            ? new Date(year, month - 1, day, 23, 59, 0).getTime()
-                            : existingDate.getTime())
-                        : new Date(year, month - 1, day, 23, 59, 0);
-                      setLocalTask({...localTask, dateDue: next.getTime()});
+                      const existing = localTask.dateDue ? new Date(localTask.dateDue) : null;
+                      const h = existing ? existing.getHours() : 23;
+                      const m = existing ? existing.getMinutes() : 59;
+                      setLocalTask({...localTask, dateDue: new Date(year, month - 1, day, h, m, 0).getTime()});
                     }}
                     onBlur={handleBlur}
                   />
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Time <span className="font-normal normal-case opacity-60">(optional)</span></label>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Due Time <span className="font-normal normal-case opacity-60">(optional)</span>
+                  </label>
                   <input 
                     type="time"
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none disabled:opacity-40"
                     disabled={!localTask.dateDue}
-                    value={localTask.dateDue ? `${String(new Date(localTask.dateDue).getHours()).padStart(2, '0')}:${String(new Date(localTask.dateDue).getMinutes()).padStart(2, '0')}` : ''}
+                    value={localTask.dateDue ? `${String(new Date(localTask.dateDue).getHours()).padStart(2,'0')}:${String(new Date(localTask.dateDue).getMinutes()).padStart(2,'0')}` : ''}
                     onChange={e => {
                       if (!localTask.dateDue || !e.target.value) return;
                       const [hours, minutes] = e.target.value.split(':').map(Number);
