@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ArrowUpCircle, Sun, Moon, Download, Upload, 
   AlertTriangle, ChevronDown, ChevronUp, X,
   Link as LinkIcon, Clock, Layers, ArrowRight, ArrowUp,
-  ChevronsUpDown, ChevronsDownUp
+  ChevronsUpDown, ChevronsDownUp, RefreshCw
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -115,9 +115,21 @@ export default function App() {
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [allExpandedTrigger, setAllExpandedTrigger] = useState(0);
   const [allCollapsedTrigger, setAllCollapsedTrigger] = useState(0);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
   const workingSlotRef = useRef<HTMLDivElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Keyboard shortcut for adding task
   useEffect(() => {
@@ -182,6 +194,34 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const handleForceRefresh = async () => {
+    if (confirm('This will clear cached app assets and reload to ensure you have the latest version. Your tasks will NOT be deleted. Continue?')) {
+      try {
+        // Unregister service workers
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+          }
+        }
+        
+        // Clear all CacheStorage (used by Workbox/PWA)
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          for (const name of cacheNames) {
+            await caches.delete(name);
+          }
+        }
+        
+        // Hard reload
+        window.location.reload();
+      } catch (err) {
+        console.error('Failed to clear cache', err);
+        alert('Failed to clear cache. Please try doing a hard refresh (Ctrl/Cmd + Shift + R).');
+      }
+    }
+  };
+
   const checkCollisionWithSlot = useCallback((x: number, y: number) => {
     if (!workingSlotRef.current) return false;
     const rect = workingSlotRef.current.getBoundingClientRect();
@@ -200,7 +240,15 @@ export default function App() {
     )}>
       {/* Navigation */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
-        <h1 className="text-xl font-bold tracking-tight bg-gradient-to-br from-zinc-900 to-zinc-500 dark:from-white dark:to-zinc-500 bg-clip-text text-transparent">QDO</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold tracking-tight bg-gradient-to-br from-zinc-900 to-zinc-500 dark:from-white dark:to-zinc-500 bg-clip-text text-transparent">QDO</h1>
+          {isOffline && (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+              OFFLINE
+            </span>
+          )}
+        </div>
         <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg">
           <TabButton active={activeTab === 'app'} onClick={() => setActiveTab('app')} icon={<LayoutList size={18} />} label="Queue" />
           <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
@@ -472,6 +520,19 @@ export default function App() {
                       className="p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-indigo-500 transition-all"
                     >
                       {theme === 'dark' ? <Sun size={20} className="text-yellow-500" /> : <Moon size={20} className="text-indigo-500" />}
+                    </button>
+                  </div>
+
+                  <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 space-y-4">
+                    <div>
+                      <h3 className="font-semibold">App Updates</h3>
+                      <p className="text-sm text-zinc-500">Clear cached assets to get the latest version. Your tasks are safe.</p>
+                    </div>
+                    <button 
+                      onClick={handleForceRefresh}
+                      className="w-full flex items-center justify-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 p-3 rounded-xl font-medium transition-all"
+                    >
+                      <RefreshCw size={18} /> Force Refresh App
                     </button>
                   </div>
 
