@@ -687,8 +687,7 @@ export default function App() {
       {/* Footer Disclaimer */}
       <footer className="w-full py-6 mt-auto border-t border-zinc-200 dark:border-zinc-800 text-center text-xs text-zinc-500 dark:text-zinc-500 bg-zinc-50/50 dark:bg-zinc-900/50">
         <div className="max-w-3xl mx-auto px-6 flex flex-col gap-1.5">
-          <p>QDO stores tasks locally in your browser. State does not automatically sync across different browsers, profiles, or incognito mode.</p>
-          <p>
+          <p>QDO stores tasks locally in your browser. State does not automatically sync across different browsers, profiles, or incognito mode.
             Generate a <button onClick={() => setActiveTab('settings')} className="font-bold underline hover:text-indigo-500 transition-colors">Share URL</button> in Settings to easily transfer your tasks to another session.
           </p>
         </div>
