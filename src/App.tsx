@@ -683,6 +683,14 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Footer Disclaimer */}
+      <footer className="w-full py-6 mt-auto border-t border-zinc-200 dark:border-zinc-800 text-center text-xs text-zinc-500 dark:text-zinc-500 bg-zinc-50/50 dark:bg-zinc-900/50">
+        <p className="max-w-2xl mx-auto px-6">
+          QDO stores tasks locally in your browser. State does not automatically sync across different browsers, profiles, or incognito mode. <br className="hidden sm:block" />
+          Generate a <strong>Share URL</strong> in Settings to easily transfer your tasks to another session.
+        </p>
+      </footer>
     </div>
   );
 }
