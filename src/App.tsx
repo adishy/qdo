@@ -45,7 +45,8 @@ const mdToHtml = (markdown: string): string => {
 
 const toggleMarkdownCheckbox = (markdown: string, index: number): string => {
   let count = 0;
-  const regex = /^(\s*(?:[*+-]|\d+\.)\s+)\[([ xX])\]/gm;
+  // Match one OR MORE consecutive list markers (like "- - ") before the checkbox
+  const regex = /^(\s*(?:(?:[*+-]|\d+\.)\s+)+)\[([ xX])\]/gm;
   return markdown.replace(regex, (match, prefix, p1) => {
     if (count === index) {
       count++;
