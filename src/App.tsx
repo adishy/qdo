@@ -686,10 +686,12 @@ export default function App() {
 
       {/* Footer Disclaimer */}
       <footer className="w-full py-6 mt-auto border-t border-zinc-200 dark:border-zinc-800 text-center text-xs text-zinc-500 dark:text-zinc-500 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <p className="max-w-2xl mx-auto px-6">
-          QDO stores tasks locally in your browser. State does not automatically sync across different browsers, profiles, or incognito mode. <br className="hidden sm:block" />
-          Generate a <strong>Share URL</strong> in Settings to easily transfer your tasks to another session.
-        </p>
+        <div className="max-w-3xl mx-auto px-6 flex flex-col gap-1.5">
+          <p>QDO stores tasks locally in your browser. State does not automatically sync across different browsers, profiles, or incognito mode.</p>
+          <p>
+            Generate a <button onClick={() => setActiveTab('settings')} className="font-bold underline hover:text-indigo-500 transition-colors">Share URL</button> in Settings to easily transfer your tasks to another session.
+          </p>
+        </div>
       </footer>
     </div>
   );
@@ -837,11 +839,19 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
               task.status === 'working' ? "bg-indigo-500 animate-pulse" : "bg-emerald-500"
             )} />
             <input 
-              className="flex-1 font-bold text-base md:text-sm bg-transparent border-none p-0 focus:ring-0 outline-none truncate select-text cursor-text"
+              className={cn(
+                "flex-1 font-bold text-base md:text-sm bg-transparent border-none p-0 focus:ring-0 outline-none truncate",
+                isExpanded ? "select-text cursor-text" : "cursor-pointer select-none"
+              )}
               value={localTask.title}
               onChange={e => setLocalTask({...localTask, title: e.target.value})}
               onBlur={handleBlur}
-              onClick={e => e.stopPropagation()}
+              readOnly={!isExpanded}
+              onClick={e => {
+                if (isExpanded) {
+                  e.stopPropagation();
+                }
+              }}
             />
           </div>
         </div>

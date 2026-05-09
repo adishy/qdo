@@ -1,6 +1,16 @@
 @import "tailwindcss";
 @variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-zinc-950: #09090b;
+}
+
+@layer base {
+  html, body {
+    @apply bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100;
+  }
+}
+
 @layer utilities {
   @keyframes glow-pulse {
     0%, 100% { opacity: 0.3; filter: blur(4px); }
