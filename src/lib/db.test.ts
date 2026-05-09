@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from './db';
-import { Task, SlotHistory } from './types';
+import type { Task, SlotHistory } from './types';
 
 describe('Database Operations', () => {
   beforeEach(async () => {

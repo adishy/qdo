@@ -26,5 +26,14 @@ QDO is a snappy, gamified queue-based todo application built with React, Vite, a
 - **Vitest**: Integrated with `fake-indexeddb` to run data-model regression tests across contexts.
 - **GitHub Actions**: Tests are automatically run on push to `main`. If they pass, the app is built and deployed directly to GitHub Pages on `qdo.adishy.com` via a custom `CNAME`.
 
+## Contribution & Agent Rules
+For automated agents working in this repository:
+1. **Always run tests and checks before committing**:
+   - `npx tsc -b` (Typecheck)
+   - `npm test` (Unit/Integration tests)
+   - Do NOT run `npm run lint` for automated commits unless specifically requested by the user, as the overly strict rules on existing React hooks may block otherwise completely valid feature additions.
+2. **Commit Policy**: You may commit code locally without explicit user consent once checks pass.
+3. **Push Policy**: You may **NOT** `git push` unless explicitly instructed to do so by the user.
+
 ## Design Constraints
 - Mobile zooming on input fields is disabled natively by using standard `16px` font sizing (via Tailwind's `text-base` class) specifically for mobile devices.

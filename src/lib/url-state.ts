@@ -1,5 +1,5 @@
 import LZString from 'lz-string';
-import { Task } from './types';
+import type { Task } from './types';
 
 export function encodeState(tasks: Task[]): string {
   try {

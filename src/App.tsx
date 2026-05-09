@@ -5,13 +5,14 @@ import {
   Plus, Trash2, ArrowUpCircle, Sun, Moon, Download, Upload, 
   AlertTriangle, ChevronDown, ChevronUp, X,
   Link as LinkIcon, Clock, Layers, ArrowRight, ArrowUp,
-  ChevronsUpDown, ChevronsDownUp, RefreshCw
+  ChevronsUpDown, ChevronsDownUp, RefreshCw, Share2, Check
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence, Reorder, useMotionValue, useTransform, useDragControls } from 'framer-motion';
 import { useTasks } from './lib/TaskContext';
 import { useSettings } from './lib/SettingsContext';
+import { encodeState, decodeState } from './lib/url-state';
 import type { Task, SlotHistory } from './lib/types';
 
 function cn(...inputs: ClassValue[]) {
@@ -106,7 +107,7 @@ function TaskMarkdown({ task, onUpdate, className }: {
 }
 
 export default function App() {
-  const { tasks, history: taskHistory, addTask, moveTask, deleteTask, updateTask, clearData, exportData, importData, reorderTasks } = useTasks();
+  const { tasks, history: taskHistory, addTask, moveTask, deleteTask, updateTask, clearData, exportData, importData, reorderTasks, mergeTasks } = useTasks();
   const { theme, toggleTheme } = useSettings();
   const [activeTab, setActiveTab] = useState<'app' | 'stats' | 'settings'>('app');
   const [viewMode, setViewMode] = useState<'list' | 'swipe'>('list');
@@ -116,9 +117,26 @@ export default function App() {
   const [allExpandedTrigger, setAllExpandedTrigger] = useState(0);
   const [allCollapsedTrigger, setAllCollapsedTrigger] = useState(0);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [shareCopied, setShareCopied] = useState(false);
   
   const workingSlotRef = useRef<HTMLDivElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
+
+  // Parse URL state on mount
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#state=')) {
+      const encoded = hash.substring(7);
+      const decodedTasks = decodeState(encoded);
+      if (decodedTasks && decodedTasks.length > 0) {
+        if (confirm(`You received a shared QDO with ${decodedTasks.length} tasks! Do you want to import them?`)) {
+          mergeTasks(decodedTasks);
+        }
+      }
+      // Clean up URL
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [mergeTasks]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -192,6 +210,19 @@ export default function App() {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleShare = async () => {
+    const encoded = encodeState(tasks);
+    const url = `${window.location.origin}${window.location.pathname}#state=${encoded}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch (err) {
+      alert('Failed to copy link. Check console for the URL.');
+      console.log('Share URL:', url);
+    }
   };
 
   const handleForceRefresh = async () => {

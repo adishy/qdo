@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { encodeState, decodeState } from './url-state';
-import { Task } from './types';
+import type { Task } from './types';
 
 describe('URL State encoding/decoding', () => {
   const mockTasks: Task[] = [
