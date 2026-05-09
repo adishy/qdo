@@ -1299,7 +1299,7 @@ function StatsView({ tasks, history, onDelete, onUpdate }: { tasks: Task[], hist
                     <foreignObject x={startX + 5} y={barY} width={Math.max(200, barWidth - 10)} height="35">
                       <div className="flex items-center h-full overflow-hidden">
                         <span className="text-[11px] font-bold truncate text-indigo-700 dark:text-indigo-300 pointer-events-none">
-                          {h.taskTitle}
+                          Task #{i + 1}
                           <span className="ml-2 font-normal opacity-70">
                             ({formatDuration((h.exitedSlotAt || now) - h.enteredSlotAt)})
                           </span>
@@ -1308,7 +1308,11 @@ function StatsView({ tasks, history, onDelete, onUpdate }: { tasks: Task[], hist
                     </foreignObject>
                     
                     {/* Tooltip on hover */}
-                    <title>{h.taskTitle} (Started: {new Date(h.enteredSlotAt).toLocaleString()})</title>
+                    <title>
+                      {h.taskTitle}&#10;
+                      Started: {new Date(h.enteredSlotAt).toLocaleTimeString()}&#10;
+                      Duration: {formatDuration((h.exitedSlotAt || now) - h.enteredSlotAt)}
+                    </title>
                   </g>
                 );
               })}
