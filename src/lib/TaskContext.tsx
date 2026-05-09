@@ -13,6 +13,7 @@ interface TaskContextType {
   clearData: () => Promise<void>;
   exportData: () => Promise<string>;
   importData: (json: string) => Promise<void>;
+  mergeTasks: (tasks: Task[]) => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -193,8 +194,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await loadData();
   };
 
+  const mergeTasks = async (newTasks: Task[]) => {
+    await db.mergeTasks(newTasks);
+    await loadData();
+  };
+
   return (
-    <TaskContext.Provider value={{ tasks, history, addTask, updateTask, deleteTask, moveTask, reorderTasks, clearData, exportData, importData }}>
+    <TaskContext.Provider value={{ tasks, history, addTask, updateTask, deleteTask, moveTask, reorderTasks, clearData, exportData, importData, mergeTasks }}>
       {children}
     </TaskContext.Provider>
   );

@@ -121,6 +121,10 @@ export class QdoDB {
 
   async importData(json: string): Promise<void> {
     const data = JSON.parse(json);
+    if (!data.tasks && !data.history) {
+      throw new Error("Invalid data format");
+    }
+    
     const db = await this.open();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([STORES.TASKS, STORES.HISTORY], 'readwrite');
@@ -136,6 +140,24 @@ export class QdoDB {
       if (data.history) {
         data.history.forEach((h: SlotHistory) => historyStore.put(h));
       }
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  async mergeTasks(tasks: Task[]): Promise<void> {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.TASKS], 'readwrite');
+      const taskStore = transaction.objectStore(STORES.TASKS);
+
+      tasks.forEach((task: Task) => {
+        // Simple merge: we can regenerate IDs to avoid collisions, or just keep them
+        // Let's regenerate IDs to be safe so they don't overwrite local tasks
+        const clonedTask = { ...task, id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) };
+        taskStore.put(clonedTask);
+      });
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);

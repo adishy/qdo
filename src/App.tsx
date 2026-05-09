@@ -525,6 +525,20 @@ export default function App() {
 
                   <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 space-y-4">
                     <div>
+                      <h3 className="font-semibold">Share your QDO</h3>
+                      <p className="text-sm text-zinc-500">Encode your current queue into a URL to share with others.</p>
+                    </div>
+                    <button 
+                      onClick={handleShare}
+                      className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                      {shareCopied ? <Check size={18} /> : <Share2 size={18} />}
+                      {shareCopied ? 'Copied to Clipboard!' : 'Copy Share Link'}
+                    </button>
+                  </div>
+
+                  <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 space-y-4">
+                    <div>
                       <h3 className="font-semibold">App Updates</h3>
                       <p className="text-sm text-zinc-500">Clear cached assets to get the latest version. Your tasks are safe.</p>
                     </div>
@@ -723,7 +737,7 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
               task.status === 'working' ? "bg-indigo-500 animate-pulse" : "bg-emerald-500"
             )} />
             <input 
-              className="flex-1 font-bold text-sm bg-transparent border-none p-0 focus:ring-0 outline-none truncate select-text cursor-text"
+              className="flex-1 font-bold text-base md:text-sm bg-transparent border-none p-0 focus:ring-0 outline-none truncate select-text cursor-text"
               value={localTask.title}
               onChange={e => setLocalTask({...localTask, title: e.target.value})}
               onBlur={handleBlur}
@@ -772,7 +786,7 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Description (Markdown)</label>
                 <textarea 
-                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2.5 text-sm focus:ring-2 ring-indigo-500/50 outline-none min-h-[80px] font-mono leading-tight"
+                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2.5 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none min-h-[80px] font-mono leading-tight"
                   value={localTask.description}
                   onChange={e => setLocalTask({...localTask, description: e.target.value})}
                   onBlur={handleBlur}
@@ -792,7 +806,7 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
                   <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">URL / Link</label>
                   <div className="flex gap-2">
                     <input 
-                      className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
+                      className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none"
                       value={localTask.url || ''}
                       onChange={e => setLocalTask({...localTask, url: e.target.value})}
                       onBlur={handleBlur}
@@ -807,7 +821,7 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Source</label>
                   <select 
-                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none"
                     value={localTask.source || ''}
                     onChange={e => {
                       const updated = { ...localTask, source: e.target.value };
@@ -826,7 +840,7 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
                   <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Date</label>
                   <input 
                     type="datetime-local"
-                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500/50 outline-none"
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none"
                     value={localTask.dateDue ? new Date(localTask.dateDue).toISOString().slice(0, 16) : ''}
                     onChange={e => setLocalTask({...localTask, dateDue: e.target.value ? new Date(e.target.value).getTime() : undefined})}
                     onBlur={handleBlur}
@@ -864,14 +878,14 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
                   <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-md p-1 border border-dashed border-zinc-300 dark:border-zinc-700">
                     <input 
                       placeholder="Key" 
-                      className="bg-transparent text-[10px] w-12 px-1 outline-none"
+                      className="bg-transparent text-base md:text-[10px] w-12 px-1 outline-none"
                       value={newPropKey}
                       onChange={e => setNewPropKey(e.target.value)}
                     />
                     <span className="text-zinc-500">:</span>
                     <input 
                       placeholder="Value" 
-                      className="bg-transparent text-[10px] w-16 px-1 outline-none"
+                      className="bg-transparent text-base md:text-[10px] w-16 px-1 outline-none"
                       value={newPropVal}
                       onChange={e => setNewPropVal(e.target.value)}
                     />
