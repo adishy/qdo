@@ -1333,6 +1333,16 @@ function StatsView({ tasks, history, onDelete, onUpdate }: { tasks: Task[], hist
                 const endX = getTimeX(h.exitedSlotAt || now);
                 const barY = i * 45 + 10;
                 const barWidth = Math.max(8, endX - startX);
+                const duration = formatDuration((h.exitedSlotAt || now) - h.enteredSlotAt);
+
+                // Decide what label fits inside the bar
+                // ~8px per char is a rough estimate at font-size 11px
+                const labelFull   = `#${i + 1}  ${duration}`;  // e.g. "#3  12m"
+                const labelShort  = `#${i + 1}`;               // e.g. "#3"
+                const charWidth   = 7.5;
+                const padding     = 12;
+                const showFull    = barWidth >= labelFull.length  * charWidth + padding;
+                const showShort   = barWidth >= labelShort.length * charWidth + padding;
                 
                 return (
                   <g key={h.id} className="group/bar">
@@ -1341,25 +1351,37 @@ function StatsView({ tasks, history, onDelete, onUpdate }: { tasks: Task[], hist
                       y={barY} 
                       width={barWidth} 
                       height={35} 
-                      rx={8} 
+                      rx={Math.min(8, barWidth / 2)} 
                       className="fill-indigo-500/20 stroke-indigo-500/50 stroke-1 hover:fill-indigo-500/40 transition-all cursor-help"
                     />
-                    <foreignObject x={startX + 5} y={barY} width={Math.max(200, barWidth - 10)} height="35">
-                      <div className="flex items-center h-full overflow-hidden">
-                        <span className="text-[11px] font-bold truncate text-indigo-700 dark:text-indigo-300 pointer-events-none">
-                          Task #{i + 1}
-                          <span className="ml-2 font-normal opacity-70">
-                            ({formatDuration((h.exitedSlotAt || now) - h.enteredSlotAt)})
-                          </span>
-                        </span>
-                      </div>
-                    </foreignObject>
-                    
-                    {/* Tooltip on hover */}
+                    {/* Only render text if there's room — use SVG text, not foreignObject, so it clips cleanly */}
+                    {showShort && (
+                      <text
+                        x={startX + 8}
+                        y={barY + 22}
+                        fontSize={11}
+                        fontWeight="bold"
+                        className="fill-indigo-700 dark:fill-indigo-300"
+                        clipPath={`url(#clip-${i})`}
+                      >
+                        {showFull ? `#${i + 1}` : `#${i + 1}`}
+                        {showFull && (
+                          <tspan fontWeight="normal" opacity={0.7}> {duration}</tspan>
+                        )}
+                      </text>
+                    )}
+                    {/* Clip path so text never bleeds outside the bar */}
+                    <defs>
+                      <clipPath id={`clip-${i}`}>
+                        <rect x={startX} y={barY} width={barWidth} height={35} rx={Math.min(8, barWidth / 2)} />
+                      </clipPath>
+                    </defs>
+
+                    {/* Full tooltip always available on hover */}
                     <title>
-                      {h.taskTitle}&#10;
+                      #{i + 1} — {h.taskTitle}&#10;
                       Started: {new Date(h.enteredSlotAt).toLocaleTimeString()}&#10;
-                      Duration: {formatDuration((h.exitedSlotAt || now) - h.enteredSlotAt)}
+                      Duration: {duration}
                     </title>
                   </g>
                 );
