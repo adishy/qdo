@@ -826,10 +826,11 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
       )}
     >
       <div 
-        className="p-3 flex items-center justify-between gap-3 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="p-3 flex items-center justify-between gap-3 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className={cn(
               "h-2.5 w-2.5 rounded-full shrink-0",
               task.status === 'queue' ? "bg-zinc-300 dark:bg-zinc-700 group-hover:bg-indigo-500" :
@@ -848,16 +849,17 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
         <div className="flex items-center gap-1 shrink-0">
           {onMove && task.status === 'queue' && (
             <button 
-              onClick={() => onMove('working')}
-              className="p-1.5 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all active:scale-90"
-              title="Start work"
+              onClick={(e) => { e.stopPropagation(); onMove('working'); }}
+              className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-indigo-500/10 text-indigo-500 rounded-lg transition-all active:scale-90"
+              title="Send to Working Slot"
             >
               <ArrowUpCircle size={18} />
+              <span className="text-xs font-bold hidden sm:block">Work</span>
             </button>
           )}
           {onMove && task.status === 'working' && (
             <button 
-              onClick={() => onMove('done')}
+              onClick={(e) => { e.stopPropagation(); onMove('done'); }}
               className="p-1.5 hover:bg-emerald-500/10 text-emerald-500 rounded-lg transition-all active:scale-90"
               title="Complete"
             >
@@ -865,7 +867,7 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
             </button>
           )}
           <button 
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
             className="p-1.5 hover:bg-zinc-200 dark:bg-zinc-800 text-zinc-400 rounded-lg transition-all"
           >
             {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
