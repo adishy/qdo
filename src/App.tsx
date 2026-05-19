@@ -11,6 +11,8 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { useTasks } from './lib/TaskContext';
 import { useSettings } from './lib/SettingsContext';
 import { encodeState, decodeState } from './lib/url-state';
@@ -967,41 +969,23 @@ function TaskItem({ task, onMove, onDelete, onUpdate, dragControls, allExpandedT
               </div>
 
               {/* Due date + time on its own full-width row so time picker is always visible */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Date</label>
-                  <input 
-                    type="date"
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Date & Time</label>
+                <div className="w-full">
+                  <DatePicker
+                    selected={localTask.dateDue ? new Date(localTask.dateDue) : null}
+                    onChange={(date: Date | null) => {
+                      setLocalTask({...localTask, dateDue: date ? date.getTime() : undefined});
+                    }}
+                    showTimeSelect
+                    timeFormat="HH:mm"
+                    timeIntervals={15}
+                    timeCaption="Time"
+                    dateFormat="MMMM d, yyyy h:mm aa"
                     className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none"
-                    value={localTask.dateDue ? (() => { const d = new Date(localTask.dateDue); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : ''}
-                    onChange={e => {
-                      if (!e.target.value) { setLocalTask({...localTask, dateDue: undefined}); return; }
-                      const [year, month, day] = e.target.value.split('-').map(Number);
-                      const existing = localTask.dateDue ? new Date(localTask.dateDue) : null;
-                      const h = existing ? existing.getHours() : 23;
-                      const m = existing ? existing.getMinutes() : 59;
-                      setLocalTask({...localTask, dateDue: new Date(year, month - 1, day, h, m, 0).getTime()});
-                    }}
-                    onBlur={handleBlur}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                    Due Time <span className="font-normal normal-case opacity-60">(optional)</span>
-                  </label>
-                  <input 
-                    type="time"
-                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-base md:text-sm focus:ring-2 ring-indigo-500/50 outline-none disabled:opacity-40"
-                    disabled={!localTask.dateDue}
-                    value={localTask.dateDue ? `${String(new Date(localTask.dateDue).getHours()).padStart(2,'0')}:${String(new Date(localTask.dateDue).getMinutes()).padStart(2,'0')}` : ''}
-                    onChange={e => {
-                      if (!localTask.dateDue || !e.target.value) return;
-                      const [hours, minutes] = e.target.value.split(':').map(Number);
-                      const next = new Date(localTask.dateDue);
-                      next.setHours(hours, minutes, 0, 0);
-                      setLocalTask({...localTask, dateDue: next.getTime()});
-                    }}
-                    onBlur={handleBlur}
+                    placeholderText="Select date and time"
+                    isClearable
+                    onCalendarClose={handleBlur}
                   />
                 </div>
               </div>
@@ -1249,7 +1233,9 @@ function StatsView({ tasks, history, onDelete, onUpdate }: { tasks: Task[], hist
       .sort((a, b) => a.enteredSlotAt - b.enteredSlotAt);
   }, [history, periodStart]);
 
-  const chartWidth = 800;
+  // Ensure 60 pixels per hour minimum, making longer periods like 2 days dynamically wider
+  // Minimum width is 800 for shorter periods to still fill the screen nicely
+  const chartWidth = Math.max(800, (periodMs / (1000 * 60 * 60)) * 60);
   const chartHeight = Math.max(200, historyInPeriod.length * 35 + 40);
   
   const getTimeX = (time: number) => {
