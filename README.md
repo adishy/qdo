@@ -2,6 +2,8 @@
 
 A snappy, gamified, queue-based progressive web application (PWA) for high-performance personal task management.
 
+![QDO Screenshot](./readme-screenshot.png)
+
 ## Overview
 QDO is designed around the concept of a "Working Slot" and a "Queue". It forces deep focus by providing a single primary slot for the task you are currently doing, while the rest of your tasks wait in a prioritized queue.
 
